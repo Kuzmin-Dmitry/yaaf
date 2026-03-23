@@ -1,0 +1,12 @@
+{
+  "name": "yaaf-usage-monitor",
+  "version": "0.1.0",
+  "description": "Usage metrics aggregator for OpenClaw monitoring",
+  "main": "lib/usage/index.js",
+  "scripts": {
+    "test": "node test/usage/aggregator.test.js"
+  },
+  "author": "",
+  "license": "MIT",
+  "type": "commonjs"
+}
