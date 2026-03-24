@@ -1,10 +1,10 @@
 {
-  "name": "yaaf-usage-monitor",
+  "name": "yaaf-telemetry",
   "version": "0.1.0",
-  "description": "Usage metrics aggregator for OpenClaw monitoring (research stage)",
-  "main": "lib/usage/index.js",
+  "description": "Session telemetry service for OpenClaw agents",
+  "main": "lib/telemetry/index.js",
   "scripts": {
-    "test": "node test/research/monitoring-tool-selection.test.js"
+    "test": "node test/telemetry/normalizer.test.js && node test/telemetry/service.test.js"
   },
   "author": "",
   "license": "MIT",
