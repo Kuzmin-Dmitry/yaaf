@@ -1,0 +1,44 @@
+# Dependencies
+node_modules/
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Coverage & test output
+coverage/
+.nyc_output/
+
+# Build output
+dist/
+build/
+
+# IDE
+.idea/
+*.swp
+*.swo
+*~
+
+# Temporary files
+tmp/
+temp/
+
+# BMad framework
+_bmad/
+_bmad-output/
+
+# AI tool configs
+.agent/
+.agents/
+.claude/
+.gemini/
+.github/skills/
