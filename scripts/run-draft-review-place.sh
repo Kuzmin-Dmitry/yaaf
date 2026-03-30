@@ -15,10 +15,10 @@ Options:
   --artifact-id ID                       Use a specific artifact id/filename stem
   --approve yes|no                       Move approved draft into active folder (default: no)
   --continue-on-clarification yes|no     Continue to draft even when intake says clarification is needed (default: no)
-  --register-lifecycle yes|no            Register with Caclawphony for remaining phases (default: yes)
+  --register-lifecycle yes|no            Register with Symphony for remaining phases (default: yes)
 
 Jarvis can call this script directly via his own channel.
-Caclawphony picks up the remaining lifecycle phases automatically.
+Symphony picks up the remaining lifecycle phases automatically.
 
 Requires:
   OPENCLAW_URL
@@ -184,7 +184,7 @@ if [[ "$approve" == "yes" ]]; then
   placed_path="$(node -e 'console.log(JSON.stringify(process.argv[1]))' "$placed_output")"
 fi
 
-# ── Register with Caclawphony for remaining lifecycle phases ──────────────
+# ── Register with Symphony for remaining lifecycle phases ──────────────
 
 next_phase=""
 
@@ -199,7 +199,7 @@ if [[ "$register_lifecycle" == "yes" ]]; then
     next_phase="USER_REVIEW"
   fi
 
-  bash "$ROOT/scripts/caclawphony.sh" init \
+  bash "$ROOT/scripts/Symphony.sh" init \
     "$resolved_kind" "$safe_name" "$review_rel" \
     --phase "$next_phase" \
     --source "jarvis"
