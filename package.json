@@ -4,7 +4,7 @@
   "description": "Session telemetry service for OpenClaw agents",
   "main": "lib/telemetry/index.js",
   "scripts": {
-    "test": "node test/telemetry/normalizer.test.js && node test/telemetry/service.test.js"
+    "test": "node test/telemetry/normalizer.test.js && node test/telemetry/service.test.js && node test/tasks/model.test.js && node test/tasks/steps.test.js && node test/tasks/create-task.test.js && node test/tasks/publish-task-model.test.js && node test/tasks/publish-task-steps.test.js && node test/tasks/publish-task.test.js && node test/github/tracker-adapter.test.js"
   },
   "author": "",
   "license": "MIT",
