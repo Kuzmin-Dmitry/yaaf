@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# Caclawphony — Symphony Runtime Engine
+# Symphony — Symphony Runtime Engine
 # YAML-driven state machine executor for feature lifecycle.
 #
 # Reads feature-lifecycle.yaml + dispatch-manifest.yaml, determines current
@@ -8,10 +8,10 @@
 # the appropriate Lobster pipeline or shell action.
 #
 # Usage:
-#   scripts/caclawphony.sh run-once              # Single transition step
-#   scripts/caclawphony.sh poll [--interval 30]   # Daemon loop
-#   scripts/caclawphony.sh status                 # Show current state
-#   scripts/caclawphony.sh init <feature|story> <id> <doc>  # Start new lifecycle
+#   scripts/Symphony.sh run-once              # Single transition step
+#   scripts/Symphony.sh poll [--interval 30]   # Daemon loop
+#   scripts/Symphony.sh status                 # Show current state
+#   scripts/Symphony.sh init <feature|story> <id> <doc>  # Start new lifecycle
 
 set -euo pipefail
 
@@ -23,10 +23,10 @@ STATUS_FILE="$HOME/.openclaw/workspace-factory-jarvis/PIPELINE_STATUS.md"
 STATUS_HELPER="$ROOT/scripts/update-pipeline-state.sh"
 CHECKPOINT_HELPER="$ROOT/scripts/write-checkpoint.sh"
 
-POLL_INTERVAL="${CACLAWPHONY_POLL_INTERVAL:-30}"
+POLL_INTERVAL="${Symphony_POLL_INTERVAL:-30}"
 
 log() {
-  printf '[caclawphony %s] %s\n' "$(date -u +"%H:%M:%S")" "$1" >&2
+  printf '[Symphony %s] %s\n' "$(date -u +"%H:%M:%S")" "$1" >&2
 }
 
 die() {
@@ -260,13 +260,13 @@ dispatch_for_phase() {
   log "Dispatching routed pipeline: $workflow"
 
   bash "$CHECKPOINT_HELPER" \
-    --pipeline "caclawphony" \
+    --pipeline "Symphony" \
     --step "dispatch-$phase" \
     --feature "${FEATURE_ID:-_none_}" \
     --story "${STORY_ID:-_none_}" \
     --verdict "dispatching" \
     --approval "_none_" \
-    --resume "bash ./scripts/caclawphony.sh run-once" \
+    --resume "bash ./scripts/Symphony.sh run-once" \
     --notes "Dispatching $workflow for phase $phase"
 
   if bash "$ROOT/scripts/lobster-dispatch.sh" "$workflow"; then
@@ -307,7 +307,7 @@ dispatch_for_phase() {
     log "Pipeline $workflow FAILED for phase $phase"
     bash "$STATUS_HELPER" set-last-logs "Pipeline $workflow FAILED for phase $phase"
     bash "$CHECKPOINT_HELPER" \
-      --pipeline "caclawphony" \
+      --pipeline "Symphony" \
       --step "dispatch-$phase-failed" \
       --feature "${FEATURE_ID:-_none_}" \
       --story "${STORY_ID:-_none_}" \
@@ -325,8 +325,8 @@ cmd_run_once() {
 }
 
 cmd_poll() {
-  local pid_file="$ROOT/.caclawphony.pid"
-  local log_file="$ROOT/.caclawphony.log"
+  local pid_file="$ROOT/.Symphony.pid"
+  local log_file="$ROOT/.Symphony.log"
 
   echo $$ > "$pid_file"
   log "Starting poll mode (interval: ${POLL_INTERVAL}s)"
@@ -431,13 +431,13 @@ cmd_init() {
     "Last Updated=$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
 
   bash "$CHECKPOINT_HELPER" \
-    --pipeline "caclawphony" \
+    --pipeline "Symphony" \
     --step "init" \
     --feature "$id" \
     --story "_none_" \
     --verdict "$gate" \
     --approval "_none_" \
-    --resume "bash ./scripts/caclawphony.sh run-once" \
+    --resume "bash ./scripts/Symphony.sh run-once" \
     --notes "Lifecycle init: $kind $id, phase=$phase, source=$source"
 
   log "Lifecycle initialized: $kind $id → phase $phase (source: $source)"
@@ -453,7 +453,7 @@ case "${1:-}" in
     cmd_run_once
     ;;
   *)
-    echo "Usage: scripts/caclawphony.sh {run-once|poll|status|init|run}" >&2
+    echo "Usage: scripts/Symphony.sh {run-once|poll|status|init|run}" >&2
     exit 1
     ;;
 esac
