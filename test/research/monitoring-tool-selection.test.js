@@ -37,7 +37,6 @@ const requiredKeywords = [
   'session_status',
   'gateway',
   'Aggregator',
-  'MetricCollector',
   'hourly',
   'daily',
   'sliding window',

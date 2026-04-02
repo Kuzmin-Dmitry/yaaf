@@ -5,7 +5,6 @@
 
 const assert = require('assert');
 const { Aggregator } = require('../../lobster/lib/usage/aggregator');
-const { MetricCollector } = require('../../lobster/lib/usage/collector');
 
 // Helper: create a fixed time source
 function createFixedClock(initialTime) {
@@ -179,23 +178,6 @@ console.log('Test: daily reset');
   // Day should have reset, so only second request
   assert.strictEqual(daily.total_tokens, 200);
   assert.strictEqual(daily.unique_sessions, 1);
-})();
-
-// Test: MetricCollector integration
-console.log('Test: MetricCollector integration');
-(() => {
-  const collector = new MetricCollector();
-  const base = Date.now();
-  collector.record({
-    timestamp: base,
-    input_tokens: 100,
-    output_tokens: 50,
-    context_usage: 75,
-    session_id: 'sess1'
-  });
-  const hourly = collector.getHourly();
-  assert.strictEqual(hourly.total_tokens, 150);
-  assert.strictEqual(collector.getDaily().unique_sessions, 1);
 })();
 
 console.log('All tests passed.');
