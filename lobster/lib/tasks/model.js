@@ -34,6 +34,24 @@ const APPROVAL_TRANSITIONS = {
 };
 
 /**
+ * States that allow architectural review.
+ */
+const REVIEWABLE_STATES = ['Draft', 'Backlog'];
+
+/**
+ * Loop limits for review-task pipeline.
+ */
+const REVIEW_LIMITS = {
+  maxAnalysisClarifications: 3,
+  maxEditRounds: 2,
+};
+
+/**
+ * Label added after successful architectural review.
+ */
+const REVIEW_LABEL = 'reviewed:architecture';
+
+/**
  * Validate a TaskObject against schema.
  * @param {Object} task - { title, description, state }
  * @returns {{ valid: boolean, reason?: string }}
@@ -57,5 +75,8 @@ module.exports = {
   RESULT_TYPES,
   STATE_LABELS,
   APPROVAL_TRANSITIONS,
+  REVIEWABLE_STATES,
+  REVIEW_LIMITS,
+  REVIEW_LABEL,
   validateTaskObject,
 };
