@@ -125,6 +125,24 @@ function createGitHubClient(token) {
     },
 
     /**
+     * Update an existing issue (title, body, labels, etc.).
+     * @param {string} owner
+     * @param {string} repo
+     * @param {number|string} issueNumber
+     * @param {Object} fields - { title?, body?, labels?, state? }
+     * @returns {Promise<Object>} updated issue object
+     */
+    updateIssue(owner, repo, issueNumber, fields) {
+      const payload = {};
+      if (fields.title !== undefined) payload.title = fields.title;
+      if (fields.body !== undefined) payload.body = fields.body;
+      if (fields.labels !== undefined) payload.labels = fields.labels;
+      if (fields.state !== undefined) payload.state = fields.state;
+      const path = `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/issues/${encodeURIComponent(issueNumber)}`;
+      return httpRequest('PATCH', path, payload, token);
+    },
+
+    /**
      * Create an issue in a repository.
      */
     createIssue(owner, repo, { title, body, labels, assignees, milestone }) {

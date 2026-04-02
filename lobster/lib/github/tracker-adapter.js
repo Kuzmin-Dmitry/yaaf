@@ -10,7 +10,7 @@
  */
 
 const { createGitHubClient } = require('./client');
-const { STATE_LABELS, APPROVAL_TRANSITIONS } = require('../tasks/model');
+const { STATE_LABELS, APPROVAL_TRANSITIONS, REVIEW_LABEL } = require('../tasks/model');
 const fs = require('fs');
 const path = require('path');
 
@@ -119,6 +119,7 @@ function createGitHubTracker({ owner, repo, token, agentDir, github }) {
       return {
         id: String(issue.number),
         title: issue.title,
+        body: issue.body || '',
         state: mapIssueState(issue.state, issue.labels),
         labels: labelNames,
       };
@@ -174,6 +175,31 @@ function createGitHubTracker({ owner, repo, token, agentDir, github }) {
         title: issue.title,
         previousState: currentState,
         newState: nextState,
+      };
+    },
+
+    /**
+     * Update an issue's body and optionally add labels.
+     * @param {string} issueId - issue number
+     * @param {Object} updates - { body?: string, addLabels?: string[] }
+     * @returns {Promise<{ id: string, title: string, url: string }>}
+     */
+    async updateIssue(issueId, updates) {
+      const fields = {};
+      if (updates.body !== undefined) {
+        fields.body = updates.body;
+      }
+
+      const issue = await client.updateIssue(owner, repo, issueId, fields);
+
+      if (updates.addLabels && updates.addLabels.length > 0) {
+        await client.addLabels(owner, repo, issueId, updates.addLabels);
+      }
+
+      return {
+        id: String(issue.number),
+        title: issue.title,
+        url: issue.html_url,
       };
     },
   };
