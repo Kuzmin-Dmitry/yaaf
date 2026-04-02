@@ -10,6 +10,7 @@
  */
 
 const { createGitHubClient } = require('./client');
+const { STATE_LABELS, APPROVAL_TRANSITIONS } = require('../tasks/model');
 const fs = require('fs');
 const path = require('path');
 
@@ -50,11 +51,24 @@ function resolveToken(token, agentDir) {
 }
 
 /**
- * Map GitHub issue state to internal task state.
+ * Map GitHub issue to internal task state using labels first, then fallback.
  * GitHub has: open, closed
+ * Labels: status:draft, status:backlog, status:ready, etc.
  * Pipeline expects: Draft, Backlog, Ready, InProgress, InReview, Done
  */
-function mapIssueState(ghState) {
+function mapIssueState(ghState, labels) {
+  if (labels && labels.length > 0) {
+    const labelNames = labels.map((l) => (typeof l === 'string' ? l : l.name));
+    const labelToState = Object.fromEntries(
+      Object.entries(STATE_LABELS).map(([state, label]) => [label, state])
+    );
+    for (const name of labelNames) {
+      if (labelToState[name]) {
+        return labelToState[name];
+      }
+    }
+  }
+  // Fallback: closed → Done, open → Draft
   return ghState === 'closed' ? 'Done' : 'Draft';
 }
 
@@ -90,12 +104,28 @@ function createGitHubTracker({ owner, repo, token, agentDir, github }) {
         .map((issue) => ({
           id: String(issue.number),
           title: issue.title,
-          state: mapIssueState(issue.state),
+          state: mapIssueState(issue.state, issue.labels),
         }));
     },
 
     /**
-     * Create a GitHub Issue and return the tracker contract result.
+     * Fetch a single issue by number.
+     * @param {string} issueId - issue number
+     * @returns {Promise<{ id: string, title: string, state: string, labels: string[] }>}
+     */
+    async fetchIssue(issueId) {
+      const issue = await client.getIssue(owner, repo, issueId);
+      const labelNames = (issue.labels || []).map((l) => l.name);
+      return {
+        id: String(issue.number),
+        title: issue.title,
+        state: mapIssueState(issue.state, issue.labels),
+        labels: labelNames,
+      };
+    },
+
+    /**
+     * Create a GitHub Issue with status:draft label.
      * @param {Object} task - { title, description, state }
      * @returns {Promise<{ id: string, url: string, title: string }>}
      */
@@ -103,12 +133,47 @@ function createGitHubTracker({ owner, repo, token, agentDir, github }) {
       const issue = await client.createIssue(owner, repo, {
         title: task.title,
         body: task.description || undefined,
+        labels: [STATE_LABELS.Draft],
       });
 
       return {
         id: String(issue.number),
         url: issue.html_url,
         title: issue.title,
+      };
+    },
+
+    /**
+     * Approve an issue: transition Draft→Backlog or Backlog→Ready via labels.
+     * @param {string} issueId - issue number
+     * @returns {Promise<{ id: string, title: string, previousState: string, newState: string }>}
+     */
+    async approveIssue(issueId) {
+      const issue = await client.getIssue(owner, repo, issueId);
+      const currentState = mapIssueState(issue.state, issue.labels);
+      const nextState = APPROVAL_TRANSITIONS[currentState];
+
+      if (!nextState) {
+        throw new Error(`Cannot approve issue in state "${currentState}". Approval is only valid for: ${Object.keys(APPROVAL_TRANSITIONS).join(', ')}`);
+      }
+
+      const oldLabel = STATE_LABELS[currentState];
+      const newLabel = STATE_LABELS[nextState];
+
+      // Remove old status label (best-effort — may not exist)
+      const labelNames = (issue.labels || []).map((l) => l.name);
+      if (labelNames.includes(oldLabel)) {
+        await client.removeLabel(owner, repo, issueId, oldLabel);
+      }
+
+      // Add new status label
+      await client.addLabels(owner, repo, issueId, [newLabel]);
+
+      return {
+        id: String(issue.number),
+        title: issue.title,
+        previousState: currentState,
+        newState: nextState,
       };
     },
   };

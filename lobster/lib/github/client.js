@@ -83,10 +83,45 @@ function createGitHubClient(token) {
      * List recent open issues from a repository.
      * @returns {Promise<Array>} array of issue objects
      */
-    listIssues(owner, repo, { state = 'open', perPage = 100, sort = 'created', direction = 'desc' } = {}) {
-      const params = `state=${state}&per_page=${perPage}&sort=${sort}&direction=${direction}`;
+    listIssues(owner, repo, { state = 'open', perPage = 100, sort = 'created', direction = 'desc', page = 1 } = {}) {
+      const params = `state=${state}&per_page=${perPage}&sort=${sort}&direction=${direction}&page=${page}`;
       const path = `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/issues?${params}`;
       return httpRequest('GET', path, null, token);
+    },
+
+    /**
+     * Get a single issue by number.
+     * @returns {Promise<Object>} issue object
+     */
+    getIssue(owner, repo, issueNumber) {
+      const path = `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/issues/${encodeURIComponent(issueNumber)}`;
+      return httpRequest('GET', path, null, token);
+    },
+
+    /**
+     * Add labels to an issue.
+     * @param {string} owner
+     * @param {string} repo
+     * @param {number|string} issueNumber
+     * @param {string[]} labels
+     * @returns {Promise<Array>} updated labels
+     */
+    addLabels(owner, repo, issueNumber, labels) {
+      const path = `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/issues/${encodeURIComponent(issueNumber)}/labels`;
+      return httpRequest('POST', path, { labels }, token);
+    },
+
+    /**
+     * Remove a label from an issue.
+     * @param {string} owner
+     * @param {string} repo
+     * @param {number|string} issueNumber
+     * @param {string} label
+     * @returns {Promise<Array>} updated labels
+     */
+    removeLabel(owner, repo, issueNumber, label) {
+      const path = `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/issues/${encodeURIComponent(issueNumber)}/labels/${encodeURIComponent(label)}`;
+      return httpRequest('DELETE', path, null, token);
     },
 
     /**

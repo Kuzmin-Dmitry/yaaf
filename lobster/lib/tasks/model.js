@@ -14,6 +14,26 @@ const RESULT_TYPES = {
 };
 
 /**
+ * Map task states to GitHub issue labels.
+ */
+const STATE_LABELS = {
+  Draft: 'status:draft',
+  Backlog: 'status:backlog',
+  Ready: 'status:ready',
+  InProgress: 'status:in-progress',
+  InReview: 'status:in-review',
+  Done: 'status:done',
+};
+
+/**
+ * Valid approval transitions: current → next.
+ */
+const APPROVAL_TRANSITIONS = {
+  Draft: 'Backlog',
+  Backlog: 'Ready',
+};
+
+/**
  * Validate a TaskObject against schema.
  * @param {Object} task - { title, description, state }
  * @returns {{ valid: boolean, reason?: string }}
@@ -35,5 +55,7 @@ module.exports = {
   TASK_STATES,
   TITLE_MAX_LENGTH,
   RESULT_TYPES,
+  STATE_LABELS,
+  APPROVAL_TRANSITIONS,
   validateTaskObject,
 };
