@@ -3,7 +3,7 @@
  */
 
 const assert = require('assert');
-const { publishTask } = require('../../lib/tasks/publish-task');
+const { publishTask } = require('../../lobster/lib/tasks/publish-task');
 
 // Helper: build mock GitHub client
 function mockGitHub(overrides = {}) {

@@ -12,7 +12,7 @@ YAAF is a **24/7 conveyor-belt factory** for software features. A human submits 
 **Core principles:**
 
 - **Zero-intervention execution** — once a feature request is accepted, no human action is required until the final review.
-- **Checkpoint-driven state** — every agent persists its progress so sessions can resume after interruptions.
+- **Stateless pipelines** — each pipeline invocation is self-contained; clarification context is passed via `partial_state`.
 - **Adversarial quality gates** — a dedicated QA agent validates every output before the pipeline advances.
 
 ---
@@ -21,17 +21,8 @@ YAAF is a **24/7 conveyor-belt factory** for software features. A human submits 
 
 | Component | Role |
 |-----------|------|
-| **Symphony** | State orchestrator — manages long-lived agent sessions, routes tasks between roles, tracks checkpoints and phase transitions. |
+| **OpenClaw** | AI agent runtime — manages agent sessions, tool invocations, and inter-agent communication. |
 | **Lobster** | Workflow execution runtime — runs skill definitions, tool invocations, and iterative loops (code → validate → fix). |
-| **ACPX** | Debug protocol — provides session introspection, step replay, and inter-agent communication tracing. |
-
-**How they connect:**
-
-1. Symphony receives a feature request and spawns a *Symphony session*.
-2. It assigns the session to the **Product Owner** agent, who creates `docs/FEATURE_SPEC.md`.
-3. Symphony advances the pipeline phase and hands the session to the next agent.
-4. Each agent executes its work inside **Lobster** workflows (`workflows/*.lobster`).
-5. **ACPX** is available throughout for debugging stalled or looping sessions.
 
 ---
 
@@ -97,7 +88,7 @@ flowchart TD
 
 **Clarification loop** — if the pipeline returns `NeedInfo` or `NeedDecision`, PM asks the user and re-invokes with accumulated context (`partial_state`). Max 3 re-invocations, then PM asks to reformulate.
 
-See [docs/create-task-flow.md](docs/create-task-flow.md) for the full feature spec and [docs/contracts/create-task-contract.md](docs/contracts/create-task-contract.md) for the pipeline API reference.
+See [docs/workflows/create-task.md](docs/workflows/create-task.md) for the main workflow, [docs/reference/contracts.md](docs/reference/contracts.md) for runtime contracts, and [docs/index.md](docs/index.md) for the full documentation map.
 
 ---
 
@@ -105,51 +96,24 @@ See [docs/create-task-flow.md](docs/create-task-flow.md) for the full feature sp
 
 ### Prerequisites
 
-- Symphony CLI (`claw`) installed and configured.
-- Lobster runtime available in PATH.
+- Node.js runtime.
+- `GITHUB_TOKEN` environment variable set (GitHub PAT with repo scope).
 - This repository cloned locally.
 
-### Launch your first feature
+### Run tests
 
 ```bash
-# Initialize a new Symphony session with your feature request
-claw session create --request "Add WS2016 support to Packer templates"
-
-# The pipeline starts automatically:
-#   PO → Architect → Coder → QA → Tech Writer
-# Monitor progress in PIPELINE_STATUS.md or via:
-claw session status
+npm test
 ```
 
-The session creates `docs/FEATURE_SPEC.md`, plans tasks in `docs/TASKS.json`, implements code, runs tests, and finalizes documentation — all autonomously.
+### Use the pipeline programmatically
 
-### Manual phase advancement (optional)
+```js
+const { createTask } = require('./lobster/lib/tasks');
+const { createGitHubTracker } = require('./lobster/lib/github');
 
-```bash
-# If an agent is waiting for human input:
-claw session advance --session-id <ID>
-
-# Resume a checkpointed session:
-claw session resume --session-id <ID>
-```
-
----
-
-## Monitoring
-
-The file [`PIPELINE_STATUS.md`](PIPELINE_STATUS.md) is the single source of truth for pipeline progress. Agents update it in real time as they complete phases.
-
-| Field | Description |
-|-------|-------------|
-| **Current Phase** | Active pipeline stage (e.g., `init-spec`, `loop-coding`) |
-| **Active Agent** | The role currently executing (e.g., `QA & Validator`) |
-| **Progress** | Completed vs total tasks (`3/7`) |
-| **Last Logs** | Truncated output from the most recent agent action |
-
-You can also query status programmatically:
-
-```bash
-claw session status --format json
+const tracker = createGitHubTracker({ owner: 'org', repo: 'project' });
+const result = await createTask({ request: 'Fix login bug', partial_state: null }, { tracker, llm });
 ```
 
 ---
@@ -158,28 +122,25 @@ claw session status --format json
 
 ```
 yaaf/
-├── agents/           # Agent role definitions and protocols
-│   ├── ROLES.md
-│   └── pm.md         # PM agent — task creation orchestrator
-├── skills/           # Reusable skill definitions for Lobster
-│   └── tasks.md      # Intent routing rules for task management
-├── workflows/        # Lobster workflow templates
-│   ├── feature-lifecycle.lobster
-│   └── create-task.lobster
-├── lib/              # Runtime modules
-│   ├── tasks/        # create_task pipeline implementation
-│   └── telemetry/    # Session telemetry service
-├── symphony/         # Symphony session configurations
-├── scripts/          # Automation and utility scripts
-├── instructions/     # Agent constitution and system prompts
-│   └── SYSTEM_PROMPT.md
-├── docs/             # Specs, contracts, decisions
-│   ├── create-task-flow.md
-│   ├── contracts/
-│   └── decisions/
+├── lobster/          # Lobster — workflows, skills, and runtime modules
+│   ├── lib/
+│   │   ├── tasks/    # create_task + publish_task pipelines
+│   │   ├── github/   # GitHub REST/GraphQL client + tracker adapters
+│   │   ├── telemetry/ # Session telemetry service
+│   │   └── usage/    # Hourly/daily usage aggregator
+│   ├── workflows/
+│   │   └── create-task.lobster
+│   └── skills/
+│       └── tasks.md  # Intent routing rules
+├── docs/             # All project documentation
+│   ├── index.md      # Navigation hub
+│   ├── overview/     # Product overview and repository map
+│   ├── architecture/ # System boundary and runtime component docs
+│   ├── workflows/    # Main execution flows
+│   ├── integrations/ # GitHub, Symphony, telemetry, usage
+│   ├── reference/    # Contracts, config, testing
+│   └── decisions/    # Architecture Decision Records (ADR)
 ├── test/             # Test suites
-├── PIPELINE_STATUS.md
-├── CHECKPOINT.md          # Auto-generated by agents at session end
 └── README.md
 ```
 

@@ -10,7 +10,7 @@ const {
   DESCRIPTION_MAX,
   LABELS_MAX,
   ASSIGNEES_MAX,
-} = require('../../lib/tasks/publish-task-model');
+} = require('../../lobster/lib/tasks/publish-task-model');
 
 // --- validatePublishParams ---
 

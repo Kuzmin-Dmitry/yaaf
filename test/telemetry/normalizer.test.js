@@ -3,7 +3,7 @@
  */
 
 const assert = require('assert');
-const { Normalizer } = require('../../lib/telemetry/normalizer');
+const { Normalizer } = require('../../lobster/lib/telemetry/normalizer');
 
 const normalizer = new Normalizer();
 

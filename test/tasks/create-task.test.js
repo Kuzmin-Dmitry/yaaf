@@ -3,7 +3,7 @@
  */
 
 const assert = require('assert');
-const { createTask } = require('../../lib/tasks/create-task');
+const { createTask } = require('../../lobster/lib/tasks/create-task');
 
 // Helper: build mock tracker
 function mockTracker(recentTasks = [], createdId = 'TASK-43') {

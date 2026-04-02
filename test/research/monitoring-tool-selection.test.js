@@ -6,7 +6,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const docPath = path.join(process.cwd(), 'docs', 'decisions', 'monitoring-tool-selection.md');
+const docPath = path.join(process.cwd(), 'docs', 'decisions', 'ADR-002-monitoring-tool-selection.md');
 
 console.log('Test: monitoring-tool-selection.md exists and is valid');
 

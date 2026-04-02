@@ -3,12 +3,12 @@
  */
 
 const assert = require('assert');
-const { enrichContext } = require('../../lib/tasks/steps/enrich-context');
-const { parseRequest } = require('../../lib/tasks/steps/parse-request');
-const { checkCompleteness } = require('../../lib/tasks/steps/check-completeness');
-const { dedupCheck } = require('../../lib/tasks/steps/dedup-check');
-const { buildTaskObject } = require('../../lib/tasks/steps/build-task-object');
-const { publish } = require('../../lib/tasks/steps/publish');
+const { enrichContext } = require('../../lobster/lib/tasks/steps/enrich-context');
+const { parseRequest } = require('../../lobster/lib/tasks/steps/parse-request');
+const { checkCompleteness } = require('../../lobster/lib/tasks/steps/check-completeness');
+const { dedupCheck } = require('../../lobster/lib/tasks/steps/dedup-check');
+const { buildTaskObject } = require('../../lobster/lib/tasks/steps/build-task-object');
+const { publish } = require('../../lobster/lib/tasks/steps/publish');
 
 // --- Step 1: Enrich Context ---
 

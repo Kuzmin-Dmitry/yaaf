@@ -1,10 +1,10 @@
 {
-  "name": "yaaf-telemetry",
+  "name": "yaaf",
   "version": "0.1.0",
-  "description": "Session telemetry service for OpenClaw agents",
-  "main": "lib/telemetry/index.js",
+  "description": "YAAF — Yet Another AI Factory. Autonomous task creation and publishing pipeline for OpenClaw agents.",
+  "main": "lobster/lib/tasks/index.js",
   "scripts": {
-    "test": "node test/research/monitoring-tool-selection.test.js && node test/usage/aggregator.test.js && node test/telemetry/normalizer.test.js && node test/telemetry/service.test.js && node test/tasks/model.test.js && node test/tasks/steps.test.js && node test/tasks/create-task.test.js && node test/tasks/publish-task-model.test.js && node test/tasks/publish-task-steps.test.js && node test/tasks/publish-task.test.js && node test/github/tracker-adapter.test.js"
+    "test": "node test/research/monitoring-tool-selection.test.js && node test/usage/aggregator.test.js && node test/telemetry/normalizer.test.js && node test/telemetry/service.test.js && node test/tasks/model.test.js && node test/tasks/steps.test.js && node test/tasks/create-task.test.js && node test/tasks/publish-task-model.test.js && node test/tasks/publish-task-steps.test.js && node test/tasks/publish-task.test.js && node test/github/tracker-adapter.test.js && node test/github/symphony-adapter.test.js"
   },
   "author": "",
   "license": "MIT",

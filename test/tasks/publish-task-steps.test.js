@@ -3,9 +3,9 @@
  */
 
 const assert = require('assert');
-const { validateParams } = require('../../lib/tasks/steps/validate-publish-params');
-const { formatIssueBody } = require('../../lib/tasks/steps/format-issue-body');
-const { publishToGitHub } = require('../../lib/tasks/steps/publish-to-github');
+const { validateParams } = require('../../lobster/lib/tasks/steps/validate-publish-params');
+const { formatIssueBody } = require('../../lobster/lib/tasks/steps/format-issue-body');
+const { publishToGitHub } = require('../../lobster/lib/tasks/steps/publish-to-github');
 
 // --- Step: Validate publish params ---
 

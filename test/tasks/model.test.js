@@ -3,7 +3,7 @@
  */
 
 const assert = require('assert');
-const { validateTaskObject, TASK_STATES, TITLE_MAX_LENGTH, RESULT_TYPES } = require('../../lib/tasks/model');
+const { validateTaskObject, TASK_STATES, TITLE_MAX_LENGTH, RESULT_TYPES } = require('../../lobster/lib/tasks/model');
 
 function testValidTask() {
   console.log('Test: valid task passes validation');

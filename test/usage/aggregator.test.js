@@ -4,8 +4,8 @@
  */
 
 const assert = require('assert');
-const { Aggregator } = require('../../lib/usage/aggregator');
-const { MetricCollector } = require('../../lib/usage/collector');
+const { Aggregator } = require('../../lobster/lib/usage/aggregator');
+const { MetricCollector } = require('../../lobster/lib/usage/collector');
 
 // Helper: create a fixed time source
 function createFixedClock(initialTime) {
@@ -69,7 +69,7 @@ console.log('Test: basic update and daily aggregation');
   assert.strictEqual(daily3.total_tokens, 525);
   assert.strictEqual(daily3.request_count, 3);
   assert.strictEqual(daily3.unique_sessions, 2);
-  assert.strictEqual(daily3.avg_context_pct, (75+80+60)/3);
+  assert.strictEqual(daily3.avg_context_pct, (75 + 80 + 60) / 3);
 })();
 
 // Test: hourly sliding window
@@ -103,7 +103,7 @@ console.log('Test: hourly sliding window');
   let hourly = agg.get_hourly();
   assert.strictEqual(hourly.total_tokens, 600);
   assert.strictEqual(hourly.request_count, 3);
-  assert.strictEqual(hourly.avg_context_pct, (50+60+70)/3);
+  assert.strictEqual(hourly.avg_context_pct, (50 + 60 + 70) / 3);
 
   // Advance 1 minute to minute 60 (which is mod 0)
   clock.advance(60 * 1000);
@@ -121,9 +121,9 @@ console.log('Test: hourly sliding window');
   // minute 59: 300 tokens
   // minute 60: 400 tokens (new bucket, idx=0 reset)
   hourly = agg.get_hourly();
-  assert.strictEqual(hourly.total_tokens, 200+300+400); // 900
+  assert.strictEqual(hourly.total_tokens, 200 + 300 + 400); // 900
   assert.strictEqual(hourly.request_count, 3);
-  assert.strictEqual(hourly.avg_context_pct, (60+70+80)/3);
+  assert.strictEqual(hourly.avg_context_pct, (60 + 70 + 80) / 3);
 })();
 
 // Test: hourly oldest minute exactly 60 minutes ago is excluded

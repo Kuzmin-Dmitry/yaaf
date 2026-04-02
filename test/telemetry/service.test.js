@@ -3,7 +3,7 @@
  */
 
 const assert = require('assert');
-const { TelemetryService } = require('../../lib/telemetry/service');
+const { TelemetryService } = require('../../lobster/lib/telemetry/service');
 
 async function testBatchSizeThreshold() {
   console.log('Test: Batch size threshold (N=3 for test)');
