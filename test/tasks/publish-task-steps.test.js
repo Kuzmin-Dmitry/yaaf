@@ -3,7 +3,7 @@
  */
 
 const assert = require('assert');
-const { validateParams } = require('../../lobster/lib/tasks/steps/validate-publish-params');
+const { validatePublishParams } = require('../../lobster/lib/tasks/publish-task-model');
 const { formatIssueBody } = require('../../lobster/lib/tasks/steps/format-issue-body');
 const { publishToGitHub } = require('../../lobster/lib/tasks/steps/publish-to-github');
 
@@ -11,7 +11,7 @@ const { publishToGitHub } = require('../../lobster/lib/tasks/steps/publish-to-gi
 
 function testValidateHappy() {
   console.log('Test: validate passes with valid params');
-  const result = validateParams({
+  const result = validatePublishParams({
     github_project: 'owner/repo',
     title: 'Fix login bug',
   });
@@ -20,7 +20,7 @@ function testValidateHappy() {
 
 function testValidateWithProjectNumber() {
   console.log('Test: validate passes with project number');
-  const result = validateParams({
+  const result = validatePublishParams({
     github_project: 'owner/repo/3',
     title: 'Fix login bug',
   });
@@ -29,35 +29,33 @@ function testValidateWithProjectNumber() {
 
 function testValidateMissingProject() {
   console.log('Test: validate rejects missing github_project');
-  const result = validateParams({ title: 'Fix login bug' });
+  const result = validatePublishParams({ title: 'Fix login bug' });
   assert.strictEqual(result.valid, false);
-  assert.strictEqual(result.result.type, 'Rejected');
-  assert.strictEqual(result.result.reason, 'invalid_params');
-  assert.ok(result.result.details.some((d) => d.includes('github_project')));
+  assert.ok(result.errors.some((d) => d.includes('github_project')));
 }
 
 function testValidateInvalidProjectFormat() {
   console.log('Test: validate rejects invalid github_project format');
-  const result = validateParams({
+  const result = validatePublishParams({
     github_project: 'just-a-name',
     title: 'Fix login bug',
   });
   assert.strictEqual(result.valid, false);
-  assert.ok(result.result.details.some((d) => d.includes('format')));
+  assert.ok(result.errors.some((d) => d.includes('format')));
 }
 
 function testValidateMissingTitle() {
   console.log('Test: validate rejects missing title');
-  const result = validateParams({
+  const result = validatePublishParams({
     github_project: 'owner/repo',
   });
   assert.strictEqual(result.valid, false);
-  assert.ok(result.result.details.some((d) => d.includes('title')));
+  assert.ok(result.errors.some((d) => d.includes('title')));
 }
 
 function testValidateEmptyTitle() {
   console.log('Test: validate rejects empty title');
-  const result = validateParams({
+  const result = validatePublishParams({
     github_project: 'owner/repo',
     title: '   ',
   });
@@ -66,61 +64,61 @@ function testValidateEmptyTitle() {
 
 function testValidateTitleTooLong() {
   console.log('Test: validate rejects title exceeding 300 chars');
-  const result = validateParams({
+  const result = validatePublishParams({
     github_project: 'owner/repo',
     title: 'a'.repeat(301),
   });
   assert.strictEqual(result.valid, false);
-  assert.ok(result.result.details.some((d) => d.includes('300')));
+  assert.ok(result.errors.some((d) => d.includes('300')));
 }
 
 function testValidateDescriptionTooLong() {
   console.log('Test: validate rejects description exceeding 65536 chars');
-  const result = validateParams({
+  const result = validatePublishParams({
     github_project: 'owner/repo',
     title: 'Test',
     description: 'a'.repeat(65537),
   });
   assert.strictEqual(result.valid, false);
-  assert.ok(result.result.details.some((d) => d.includes('65536')));
+  assert.ok(result.errors.some((d) => d.includes('65536')));
 }
 
 function testValidateLabelsNotArray() {
   console.log('Test: validate rejects labels not an array');
-  const result = validateParams({
+  const result = validatePublishParams({
     github_project: 'owner/repo',
     title: 'Test',
     labels: 'bug',
   });
   assert.strictEqual(result.valid, false);
-  assert.ok(result.result.details.some((d) => d.includes('labels must be an array')));
+  assert.ok(result.errors.some((d) => d.includes('labels must be an array')));
 }
 
 function testValidateTooManyLabels() {
   console.log('Test: validate rejects labels exceeding 50');
-  const result = validateParams({
+  const result = validatePublishParams({
     github_project: 'owner/repo',
     title: 'Test',
     labels: Array.from({ length: 51 }, (_, i) => `label-${i}`),
   });
   assert.strictEqual(result.valid, false);
-  assert.ok(result.result.details.some((d) => d.includes('50')));
+  assert.ok(result.errors.some((d) => d.includes('50')));
 }
 
 function testValidateTooManyAssignees() {
   console.log('Test: validate rejects assignees exceeding 10');
-  const result = validateParams({
+  const result = validatePublishParams({
     github_project: 'owner/repo',
     title: 'Test',
     assignees: Array.from({ length: 11 }, (_, i) => `user-${i}`),
   });
   assert.strictEqual(result.valid, false);
-  assert.ok(result.result.details.some((d) => d.includes('10')));
+  assert.ok(result.errors.some((d) => d.includes('10')));
 }
 
 function testValidateFullParams() {
   console.log('Test: validate passes with all optional params');
-  const result = validateParams({
+  const result = validatePublishParams({
     github_project: 'owner/repo/5',
     title: 'Add dark mode',
     description: 'Implement dark mode theme',
