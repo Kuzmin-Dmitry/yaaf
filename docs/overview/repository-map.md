@@ -24,8 +24,9 @@ Primary business logic for creating and publishing issues.
 | File | Role |
 |---|---|
 | `create-task.js` | Orchestrates the six-step `create_task` pipeline |
+| `approve-task.js` | Orchestrates the `approve_task` pipeline (Draft→Backlog→Ready via labels) |
 | `publish-task.js` | Orchestrates the `publish_task` pipeline |
-| `model.js` | Shared task states, result types, and validation helpers |
+| `model.js` | Shared task states, result types, state labels, approval transitions, and validation helpers |
 | `publish-task-model.js` | Validation and parsing rules for `publish_task` params |
 | `steps/*` | Small deterministic step implementations |
 
@@ -36,7 +37,7 @@ GitHub connectivity and adapter layer.
 | File | Role |
 |---|---|
 | `client.js` | Low-level GitHub REST v3 and GraphQL v4 client |
-| `tracker-adapter.js` | Bridges GitHub to the `create_task` tracker contract |
+| `tracker-adapter.js` | Bridges GitHub to the `create_task` and `approve_task` tracker contract |
 | `symphony-adapter.js` | Bridges GitHub to the Symphony issue contract |
 | `tracker-config.js` | Parses and validates `tracker.kind: github` config |
 | `index.js` | Aggregated exports |
@@ -73,7 +74,7 @@ In-memory aggregation of request metrics.
 
 | Folder | What it covers |
 |---|---|
-| `test/tasks/` | `create_task`, `publish_task`, and model-level behavior |
+| `test/tasks/` | `create_task`, `approve_task`, `publish_task`, and model-level behavior |
 | `test/github/` | GitHub tracker adapter and Symphony adapter behavior |
 | `test/telemetry/` | Telemetry batching and payload normalization |
 | `test/usage/` | Sliding window aggregation behavior |
@@ -84,6 +85,7 @@ In-memory aggregation of request metrics.
 | Goal | First files to read |
 |---|---|
 | Understand task creation | `lobster/lib/tasks/create-task.js`, `lobster/lib/tasks/steps/*` |
+| Understand task approval | `lobster/lib/tasks/approve-task.js`, `lobster/lib/tasks/model.js` |
 | Understand GitHub publishing | `lobster/lib/tasks/publish-task.js`, `lobster/lib/github/client.js` |
 | Understand Symphony support | `lobster/lib/github/symphony-adapter.js`, `lobster/lib/github/tracker-config.js` |
 | Understand telemetry | `lobster/lib/telemetry/agent-wrapper.js`, `lobster/lib/telemetry/service.js` |

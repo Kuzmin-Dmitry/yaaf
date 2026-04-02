@@ -18,7 +18,10 @@ The repo uses both REST and GraphQL, but hides those details behind small focuse
 | Method | Transport | Use |
 |---|---|---|
 | `listIssues()` | REST | Retrieve recent issues for dedup or task lookup |
+| `getIssue()` | REST | Retrieve a single issue by number |
 | `createIssue()` | REST | Create issues |
+| `addLabels()` | REST | Add labels to an issue |
+| `removeLabel()` | REST | Remove a label from an issue |
 | `findMilestone()` | REST | Resolve milestone name → milestone number |
 | `addToProject()` | GraphQL | Insert an issue into Project v2 |
 | `graphql()` | GraphQL | Raw escape hatch used by higher-level adapters |
@@ -41,8 +44,15 @@ Fallback profile lookup is implemented in `tracker-adapter.js` and uses `OPENCLA
 
 | Pipeline need | Adapter method | GitHub behavior |
 |---|---|---|
-| Recent tasks for dedup | `fetchRecentTasks()` | Lists up to 100 issues, filters PRs, maps open/closed to Draft/Done |
-| Publish a new task | `createIssue(task)` | Sends title/body and returns `{ id, url, title }` |
+| Recent tasks for dedup | `fetchRecentTasks()` | Lists up to 100 issues, filters PRs, maps state from labels (fallback: open/closed → Draft/Done) |
+| Publish a new task | `createIssue(task)` | Sends title/body with `status:draft` label and returns `{ id, url, title }` |
+
+## `approve_task` Adapter Mapping
+
+| Pipeline need | Adapter method | GitHub behavior |
+|---|---|---|
+| Fetch current issue state | `fetchIssue(id)` | Gets issue by number, reads state from `status:*` labels |
+| Transition state via labels | `approveIssue(id)` | Removes old `status:*` label, adds new label (Draft→Backlog or Backlog→Ready) |
 
 ## Direct Publishing Path
 
@@ -62,4 +72,4 @@ That matters because `publish_task` needs GitHub-specific features that are outs
 |---|---|---|
 | Runtime dependencies | Built-in `https` only | Minimal surface, but more manual transport code |
 | Dedup source | Recent issue list | Simple and deterministic, but bounded to fetched issues |
-| Issue state model | `open` / `closed` in REST adapter | Enough for `create_task`, not enough for Symphony-level orchestration |
+| Issue state model | `status:*` labels for granular states, open/closed fallback | Full label-based state model supports approval transitions and Symphony orchestration |

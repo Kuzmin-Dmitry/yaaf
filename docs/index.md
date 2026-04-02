@@ -11,7 +11,9 @@ Project documentation for YAAF as it exists in this repository today.
 | See the system shape and boundaries | [Architecture / System Overview](architecture/system-overview.md) |
 | Understand runtime modules in depth | [Architecture / Runtime Components](architecture/runtime-components.md) |
 | Follow the main user flow | [Workflows / Create Task](workflows/create-task.md) |
+| Approve and advance issues | [Workflows / Approve Task](workflows/approve-task.md) |
 | Understand direct GitHub publishing | [Workflows / Publish Task](workflows/publish-task.md) |
+| See the project status workflow | [Workflows / Project Status](workflows/project-status.md) |
 | See GitHub and Symphony integration details | [Integrations / GitHub](integrations/github.md), [Integrations / Symphony](integrations/symphony.md) |
 | Understand observability modules | [Integrations / Telemetry and Usage](integrations/telemetry-and-usage.md) |
 | Check contracts, config, and tests | [Reference / Contracts](reference/contracts.md), [Reference / Configuration](reference/configuration.md), [Reference / Testing](reference/testing.md) |
@@ -37,7 +39,9 @@ Project documentation for YAAF as it exists in this repository today.
 | Document | Purpose |
 |---|---|
 | [Create Task](workflows/create-task.md) | Conversational task creation from Telegram message to GitHub issue |
+| [Approve Task](workflows/approve-task.md) | Approval pipeline: Draft→Backlog→Ready transitions via GitHub labels |
 | [Publish Task](workflows/publish-task.md) | Direct GitHub issue publishing with validation, formatting, and optional project wiring |
+| [Project Status](workflows/project-status.md) | Read-only workflow for project status requests backed by all open GitHub issues and multi-project aliases |
 
 ### Integrations
 

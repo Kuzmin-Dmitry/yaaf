@@ -28,8 +28,9 @@ flowchart TB
 | Layer | Primary responsibility | Key files |
 |---|---|---|
 | Interaction layer | Accept user messages and route them into task workflows | OpenClaw runtime, `lobster/skills/tasks.md` |
-| Workflow layer | Run deterministic pipelines with typed exits | `lobster/lib/tasks/*`, `lobster/workflows/create-task.lobster` |
+| Workflow layer | Run deterministic pipelines with typed exits | `lobster/lib/tasks/*`, `lobster/workflows/*.lobster` |
 | Integration layer | Talk to GitHub and adapt issue models | `lobster/lib/github/*` |
+| Configuration layer | Resolve project aliases and per-project settings | `lobster/lib/projects/*` |
 | Observability layer | Format, batch, and aggregate usage signals | `lobster/lib/telemetry/*`, `lobster/lib/usage/*` |
 
 ## External Dependencies
@@ -55,7 +56,9 @@ flowchart TB
 | Area | Current state in repo | Planned or external |
 |---|---|---|
 | `create_task` pipeline | Fully implemented and tested | None required |
+| `approve_task` pipeline | Fully implemented and tested | None required |
 | `publish_task` pipeline | Fully implemented and tested | None required |
+| `project_status` pipeline | Fully implemented and tested | PM routing not yet wired |
 | Symphony GitHub adapter | Core adapter implemented and tested | Full runtime integration still external |
 | `github_graphql` tool | Not present in runtime | Planned in spec, not yet implemented |
 | Telemetry sender | Message formatting and batching implemented | Actual Telegram delivery still placeholder |

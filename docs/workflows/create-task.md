@@ -74,7 +74,7 @@ Operationally, that means:
 ## Invariants
 
 1. Only step 2 uses the LLM.
-2. New tasks always start in `Draft`.
+2. New tasks always start in `Draft` (with `status:draft` GitHub label).
 3. Deduplication is case-insensitive exact-match, not semantic similarity.
 4. The clarification loop is capped at 3 re-invocations.
 5. Tracker failures throw instead of being wrapped as typed business results.

@@ -5,15 +5,17 @@ YAAF is a repository for the execution layer of an AI-assisted delivery pipeline
 At its core, the repo does four things:
 
 1. Accepts a natural-language task request and turns it into a structured GitHub issue.
-2. Publishes issues directly to GitHub, including labels, assignees, milestones, and optional Project v2 placement.
-3. Exposes adapters that let the same GitHub issues participate in a larger Symphony orchestration model.
-4. Provides observability building blocks for telemetry reporting and in-memory usage aggregation.
+2. Approves issues through a label-based state machine (Draft → Backlog → Ready).
+3. Publishes issues directly to GitHub, including labels, assignees, milestones, and optional Project v2 placement.
+4. Exposes adapters that let the same GitHub issues participate in a larger Symphony orchestration model.
+5. Provides observability building blocks for telemetry reporting and in-memory usage aggregation.
 
 ## Current Capability Set
 
 | Capability | Status | Notes |
 |---|---|---|
 | Conversational task creation (`create_task`) | Implemented | Main end-user flow in this repo |
+| Task approval transitions (`approve_task`) | Implemented | Draft→Backlog→Ready via GitHub labels |
 | Direct issue publishing (`publish_task`) | Implemented | Used when task fields are already structured |
 | GitHub tracker adapter for `create_task` | Implemented | Resolves token and bridges to the pipeline contract |
 | GitHub client (REST + GraphQL) | Implemented | No external npm dependencies |

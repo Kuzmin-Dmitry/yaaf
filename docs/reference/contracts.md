@@ -74,6 +74,41 @@ This document gathers the runtime contracts that other code needs to respect.
 | `Ready` | Real issue created or dry-run preview returned |
 | `Rejected` | Validation failure |
 
+## `approveTask(input, deps)`
+
+### Input
+
+```js
+{
+  issue_id: string   // GitHub issue number
+}
+```
+
+### Dependencies
+
+```js
+{
+  tracker: {
+    fetchIssue(id): Promise<{ id, title, state, labels }>,
+    approveIssue(id): Promise<{ id, title, previousState, newState }>
+  }
+}
+```
+
+### Results
+
+| Type | Shape |
+|---|---|
+| `Ready` | `{ type, task: { id, title, previousState, newState } }` |
+| `Rejected` | `{ type, reason: "missing_issue_id" \| "invalid_transition", details }` |
+
+### Valid Transitions
+
+| Current State | → Next State |
+|---|---|
+| `Draft` | `Backlog` |
+| `Backlog` | `Ready` |
+
 ## Tracker Contract for `create_task`
 
 The task creation pipeline expects this exact interface:
@@ -85,7 +120,31 @@ The task creation pipeline expects this exact interface:
 }
 ```
 
-`createGitHubTracker()` is the GitHub-backed implementation of that contract.
+### Extended Tracker Contract (approval)
+
+The approval pipeline adds these methods:
+
+```js
+{
+  fetchIssue(id): Promise<{ id, title, state, labels }>,
+  approveIssue(id): Promise<{ id, title, previousState, newState }>
+}
+```
+
+`createGitHubTracker()` is the GitHub-backed implementation of both contracts.
+
+### State Labels
+
+GitHub issue labels map to task states:
+
+| Label | State |
+|---|---|
+| `status:draft` | Draft |
+| `status:backlog` | Backlog |
+| `status:ready` | Ready |
+| `status:in-progress` | InProgress |
+| `status:in-review` | InReview |
+| `status:done` | Done |
 
 ## Symphony Adapter Contract
 
@@ -129,3 +188,62 @@ flush(): Promise<void>
 ```
 
 These helpers are intentionally safe-to-call: telemetry failures are logged and swallowed.
+
+## `projectStatus(input, deps)`
+
+### Input
+
+```js
+{
+  request: string,
+  project_alias: string | null
+}
+```
+
+### Dependencies
+
+```js
+{
+  projects: {
+    resolve(alias): { key, repo, aliases, stale_after_days } | null,
+    list(): Array<{ key, repo, aliases }>
+  },
+  github: {
+    listIssues(owner, repo, opts): Promise<Issue[]>
+  },
+  clock: {
+    now(): Date
+  }
+}
+```
+
+### Results
+
+| Type | Shape |
+|---|---|
+| `Ready` | `{ type, project, brief, stats, generated_at }` |
+| `NeedInfo` | `{ type, missing, known_projects }` |
+
+Infrastructure failures (GitHub unreachable, auth errors) throw.
+
+### `Ready` payload
+
+```js
+{
+  type: 'Ready',
+  project: { key, repo },
+  brief: string,
+  stats: { total_open, by_status, stale_count },
+  generated_at: ISO8601
+}
+```
+
+### `NeedInfo` payload
+
+```js
+{
+  type: 'NeedInfo',
+  missing: ['project_alias'],
+  known_projects: [{ key, repo, aliases }]
+}
+```

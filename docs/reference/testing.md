@@ -10,8 +10,8 @@ npm test
 
 | Folder | Coverage |
 |---|---|
-| `test/tasks/` | Task model, task pipeline steps, `create_task`, `publish_task` |
-| `test/github/` | GitHub tracker adapter and Symphony adapter |
+| `test/tasks/` | Task model, task pipeline steps, `create_task`, `approve_task`, `publish_task`, `project_status` |
+| `test/github/` | GitHub tracker adapter (including label-based approval), Symphony adapter |
 | `test/telemetry/` | Telemetry batching and normalization |
 | `test/usage/` | Sliding-window aggregation |
 | `test/research/` | ADR/document existence and structure checks |
@@ -21,8 +21,10 @@ npm test
 | Area | Evidence |
 |---|---|
 | `create_task` happy path and clarification paths | `create-task.test.js`, `steps.test.js` |
+| `approve_task` state transitions and rejection paths | `approve-task.test.js` |
 | `publish_task` validation and dry-run behavior | `publish-task*.test.js` |
-| GitHub tracker contract mapping | `tracker-adapter.test.js` |
+| `project_status` pipeline, model, and aggregation | `project-status.test.js` |
+| GitHub tracker contract mapping | `tracker-adapter.test.js` (including label-based state mapping and approval transitions) |
 | Symphony GitHub adapter normalization and edge cases | `symphony-adapter.test.js` |
 | Telemetry batching and normalizer behavior | `service.test.js`, `normalizer.test.js` |
 | Aggregation windows | `aggregator.test.js` |

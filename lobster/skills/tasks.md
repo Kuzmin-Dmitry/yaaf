@@ -11,6 +11,11 @@ Delegate to `agent.pm` when the user message matches any of these intents:
 - Keywords: "сделай таск", "создай задачу", "добавь тикет", "запиши баг", "new task", "create issue"
 - Free-form descriptions that imply a new work item
 
+### Approve task
+- User asks to approve, advance, promote a task/ticket/issue
+- Keywords: "апрувни таск", "одобри задачу", "approve issue", "продвинь задачу", "переведи в backlog", "переведи в ready"
+- References to existing task IDs with approval intent: "апрувни TASK-42", "approve #42"
+
 ### Update task (future)
 - User asks to update, change, edit an existing task
 - Keywords: "обнови таск", "поменяй задачу", "измени тикет"
@@ -23,10 +28,15 @@ Delegate to `agent.pm` when the user message matches any of these intents:
 3. Pass the raw user message to PM unchanged
 4. If unclear whether it's a task intent, ask one clarifying question before routing
 
+### Project status
+- User asks for project status, progress, or summary
+- Keywords: "дай статус", "статус проекта", "как дела по проекту", "project status", "what's the status"
+- References to a known project alias: "yaaf", or generic "по проекту"
+
 ## What agent.main does NOT do
 
 - Does not know task fields (title, description, state)
-- Does not know about the create_task pipeline
+- Does not know about the create_task or project_status pipelines
 - Does not parse task data
 - Does not talk to the tracker
 
@@ -37,5 +47,9 @@ Delegate to `agent.pm` when the user message matches any of these intents:
 | "сделай таск на фикс логина" | create task | agent.pm |
 | "создай задачу: рефакторинг API" | create task | agent.pm |
 | "запиши баг — кнопка не работает" | create task | agent.pm |
+| "апрувни TASK-42" | approve task | agent.pm |
+| "одобри задачу #10" | approve task | agent.pm |
 | "обнови TASK-42" | update task | agent.pm |
+| "дай статус по проекту yaaf" | project status | agent.pm |
+| "как дела по yaaf?" | project status | agent.pm |
 | "какая погода?" | not task-related | handle locally |

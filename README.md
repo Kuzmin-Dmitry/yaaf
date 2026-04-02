@@ -39,14 +39,14 @@ flowchart TD
     subgraph Pipeline["create_task pipeline"]
         direction TB
         S1["1 · enrich context\n↓ fetch recent tasks from tracker"]
-        S2["2 · parse request\n↓ LLM extracts title + description"]
-        S3{"3 · complete?"}
+        S2["2 · parse request\n↓ LLM extracts title + optional description"]
+        S3{"3 · title present?"}
         S4{"4 · duplicate?"}
         S5{"5 · valid schema?"}
         S6["6 · publish\n↓ POST to GitHub Issues"]
 
         S1 --> S2 --> S3
-        S3 -->|"✓ all fields present"| S4
+        S3 -->|"✓ title present"| S4
         S4 -->|"✓ no match"| S5
         S5 -->|"✓ valid"| S6
     end
@@ -84,11 +84,13 @@ flowchart TD
 |-------|-----------|------|----------|
 | **Routing** | `agent.main` | Detect task intent, delegate to PM | Know task fields or pipeline |
 | **Orchestration** | `agent.pm` | Run clarification loop, assemble `partial_state` | Parse NL into structured fields |
-| **Execution** | `create_task` | Extract fields, validate, dedup, publish | Talk to user |
+| **Execution** | `create_task` | Extract fields, require title, exact-match dedup, publish new task | Talk to user or manage clarification loop |
 
-**Clarification loop** — if the pipeline returns `NeedInfo` or `NeedDecision`, PM asks the user and re-invokes with accumulated context (`partial_state`). Max 3 re-invocations, then PM asks to reformulate.
+**Clarification loop** — if the pipeline returns `NeedInfo` or `NeedDecision`, PM asks the user and re-invokes with accumulated context (`partial_state`). The max 3 re-invocations limit is enforced by `agent.pm`, not by `create_task` itself.
 
-See [docs/workflows/create-task.md](docs/workflows/create-task.md) for the main workflow, [docs/reference/contracts.md](docs/reference/contracts.md) for runtime contracts, and [docs/index.md](docs/index.md) for the full documentation map.
+**Current duplicate handling** — `create_task` returns `NeedDecision` when it finds a case-insensitive exact title match among non-`Done` tasks. If the user chooses to create a new task, PM re-invokes with `dedup_decision: "create_new"`. Choosing an existing task is outside `create_task` and belongs to a future `update_task` flow.
+
+See [docs/workflows/create-task.md](docs/workflows/create-task.md) for the main workflow, [docs/workflows/approve-task.md](docs/workflows/approve-task.md) for the approval pipeline, [docs/reference/contracts.md](docs/reference/contracts.md) for runtime contracts, and [docs/index.md](docs/index.md) for the full documentation map.
 
 ---
 
@@ -109,11 +111,21 @@ npm test
 ### Use the pipeline programmatically
 
 ```js
-const { createTask } = require('./lobster/lib/tasks');
+const { createTask, approveTask } = require('./lobster/lib/tasks');
 const { createGitHubTracker } = require('./lobster/lib/github');
 
 const tracker = createGitHubTracker({ owner: 'org', repo: 'project' });
+
+// Create a task (starts in Draft with status:draft label)
 const result = await createTask({ request: 'Fix login bug', partial_state: null }, { tracker, llm });
+
+// Approve: Draft → Backlog
+const approval = await approveTask({ issue_id: result.task.id }, { tracker });
+// approval.task.newState === 'Backlog'
+
+// Approve again: Backlog → Ready
+const ready = await approveTask({ issue_id: result.task.id }, { tracker });
+// ready.task.newState === 'Ready'
 ```
 
 ---
@@ -124,7 +136,7 @@ const result = await createTask({ request: 'Fix login bug', partial_state: null 
 yaaf/
 ├── lobster/          # Lobster — workflows, skills, and runtime modules
 │   ├── lib/
-│   │   ├── tasks/    # create_task + publish_task pipelines
+│   │   ├── tasks/    # create_task + approve_task + publish_task pipelines
 │   │   ├── github/   # GitHub REST/GraphQL client + tracker adapters
 │   │   ├── telemetry/ # Session telemetry service
 │   │   └── usage/    # Hourly/daily usage aggregator
