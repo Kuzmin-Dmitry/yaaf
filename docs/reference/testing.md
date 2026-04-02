@@ -10,7 +10,7 @@ npm test
 
 | Folder | Coverage |
 |---|---|
-| `test/tasks/` | Task model, task pipeline steps, `create_task`, `approve_task`, `publish_task`, `project_status` |
+| `test/tasks/` | Task model, task pipeline steps, `create_task`, `approve_task`, `review_task`, `publish_task`, `project_status` |
 | `test/github/` | GitHub tracker adapter (including label-based approval), Symphony adapter |
 | `test/telemetry/` | Telemetry batching and normalization |
 | `test/usage/` | Sliding-window aggregation |
@@ -22,6 +22,7 @@ npm test
 |---|---|
 | `create_task` happy path and clarification paths | `create-task.test.js`, `steps.test.js` |
 | `approve_task` state transitions and rejection paths | `approve-task.test.js` |
+| `review_task` full pipeline, multi-turn, approval/rejection | `review-task.test.js` |
 | `publish_task` validation and dry-run behavior | `publish-task*.test.js` |
 | `project_status` pipeline, model, and aggregation | `project-status.test.js` |
 | GitHub tracker contract mapping | `tracker-adapter.test.js` (including label-based state mapping and approval transitions) |

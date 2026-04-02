@@ -16,6 +16,11 @@ Delegate to `agent.pm` when the user message matches any of these intents:
 - Keywords: "апрувни таск", "одобри задачу", "approve issue", "продвинь задачу", "переведи в backlog", "переведи в ready"
 - References to existing task IDs with approval intent: "апрувни TASK-42", "approve #42"
 
+### Review task
+- User asks to review, analyze, audit, or do architecture review of a task/ticket/issue
+- Keywords: "проведи ревью", "ревью таска", "review task", "architecture review", "проанализируй задачу", "сделай ревью"
+- References to existing task IDs with review intent: "проведи ревью TASK-42", "review #42"
+
 ### Update task (future)
 - User asks to update, change, edit an existing task
 - Keywords: "обнови таск", "поменяй задачу", "измени тикет"
@@ -49,6 +54,8 @@ Delegate to `agent.pm` when the user message matches any of these intents:
 | "запиши баг — кнопка не работает" | create task | agent.pm |
 | "апрувни TASK-42" | approve task | agent.pm |
 | "одобри задачу #10" | approve task | agent.pm |
+| "проведи ревью TASK-42" | review task | agent.pm |
+| "сделай ревью #10" | review task | agent.pm |
 | "обнови TASK-42" | update task | agent.pm |
 | "дай статус по проекту yaaf" | project status | agent.pm |
 | "как дела по yaaf?" | project status | agent.pm |

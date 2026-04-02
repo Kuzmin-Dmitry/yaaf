@@ -133,6 +133,84 @@ The approval pipeline adds these methods:
 
 `createGitHubTracker()` is the GitHub-backed implementation of both contracts.
 
+### Extended Tracker Contract (review)
+
+The review pipeline adds this method:
+
+```js
+{
+  updateIssue(id, { body?, addLabels? }): Promise<{ id, title, url }>
+}
+```
+
+Note: `fetchIssue` for review also returns `body: string` in the result.
+
+## `reviewTask(input, deps)`
+
+### Input
+
+```js
+{
+  issue_id: string,
+  partial_state: {
+    answers?: string[],
+    decision?: "approve" | "reject",
+    edit_notes?: string,
+    analysis?: object,
+    rewritten?: { title, body },
+    code_context?: object,
+    issue?: object,
+    clarification_count?: number,
+    edit_count?: number
+  } | null
+}
+```
+
+### Dependencies
+
+```js
+{
+  tracker: {
+    fetchIssue(id): Promise<{ id, title, body, state, labels }>,
+    updateIssue(id, updates): Promise<{ id, title, url }>
+  },
+  llm: {
+    analyzeTask(prompt): Promise<{ affected_components, technical_gaps, risks, dependencies, suggested_approach, completeness_score }>,
+    rewriteTask(prompt): Promise<{ title, body }>
+  },
+  agentRunner: {
+    runAgentJSON(agentId, task): Promise<{ repoTree, files, totalSize }>
+  },
+  owner: string,
+  repo: string
+}
+```
+
+### Results
+
+| Type | Shape |
+|---|---|
+| `Ready` | `{ type, task: { id, url, title, changes_summary } }` |
+| `NeedInfo` | `{ type, phase: "analysis", questions, analysis_so_far }` |
+| `NeedDecision` | `{ type, phase: "approval", rewritten_task, options, diff_summary }` |
+| `Rejected` | `{ type, reason, details }` |
+
+### Rejection Reasons
+
+| Reason | When |
+|---|---|
+| `missing_issue_id` | No issue_id provided |
+| `invalid_state` | Issue is not in Draft or Backlog |
+| `user_rejected` | User chose to reject the review |
+| `max_retries` | Analysis clarifications or edit rounds exceeded limits |
+
+### Loop Limits
+
+| Loop | Max |
+|---|---|
+| Analysis clarifications | 3 |
+| Approval edit rounds | 2 |
+
 ### State Labels
 
 GitHub issue labels map to task states:
