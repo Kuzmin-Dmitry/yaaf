@@ -9,7 +9,7 @@
  */
 
 const { RESULT_TYPES } = require('./model');
-const { validateParams } = require('./steps/validate-publish-params');
+const { validatePublishParams } = require('./publish-task-model');
 const { formatIssueBody } = require('./steps/format-issue-body');
 const { publishToGitHub } = require('./steps/publish-to-github');
 
@@ -33,9 +33,13 @@ async function publishTask(params, deps) {
   const { github } = deps;
 
   // Step 1: Validate parameters
-  const validation = validateParams(params);
+  const validation = validatePublishParams(params);
   if (!validation.valid) {
-    return validation.result;
+    return {
+      type: RESULT_TYPES.Rejected,
+      reason: 'invalid_params',
+      details: validation.errors,
+    };
   }
 
   // Step 2: Format issue body
