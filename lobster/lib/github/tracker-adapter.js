@@ -147,11 +147,13 @@ function createGitHubTracker({ owner, repo, token, agentDir, github }) {
     /**
      * Approve an issue: transition Draft→Backlog or Backlog→Ready via labels.
      * @param {string} issueId - issue number
+     * @param {Object} [knownIssue] - pre-fetched issue from pipeline (avoids extra API call)
      * @returns {Promise<{ id: string, title: string, previousState: string, newState: string }>}
      */
-    async approveIssue(issueId) {
-      const issue = await client.getIssue(owner, repo, issueId);
-      const currentState = mapIssueState(issue.state, issue.labels);
+    async approveIssue(issueId, knownIssue) {
+      const issue = knownIssue || await client.getIssue(owner, repo, issueId);
+      const labels = knownIssue ? issue.labels : (issue.labels || []).map((l) => l.name);
+      const currentState = knownIssue ? issue.state : mapIssueState(issue.state, issue.labels);
       const nextState = APPROVAL_TRANSITIONS[currentState];
 
       if (!nextState) {
@@ -162,7 +164,7 @@ function createGitHubTracker({ owner, repo, token, agentDir, github }) {
       const newLabel = STATE_LABELS[nextState];
 
       // Remove old status label (best-effort — may not exist)
-      const labelNames = (issue.labels || []).map((l) => l.name);
+      const labelNames = knownIssue ? labels : (issue.labels || []).map((l) => l.name);
       if (labelNames.includes(oldLabel)) {
         await client.removeLabel(owner, repo, issueId, oldLabel);
       }
@@ -171,7 +173,7 @@ function createGitHubTracker({ owner, repo, token, agentDir, github }) {
       await client.addLabels(owner, repo, issueId, [newLabel]);
 
       return {
-        id: String(issue.number),
+        id: knownIssue ? issue.id : String(issue.number),
         title: issue.title,
         previousState: currentState,
         newState: nextState,

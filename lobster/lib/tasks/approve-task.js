@@ -50,8 +50,8 @@ async function approveTask(input, deps) {
     };
   }
 
-  // Step 3: Execute approval (swap labels)
-  const result = await tracker.approveIssue(issue_id);
+  // Step 3: Execute approval (swap labels), pass pre-fetched issue to avoid double API call
+  const result = await tracker.approveIssue(issue_id, issue);
 
   return {
     type: RESULT_TYPES.Ready,
