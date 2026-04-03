@@ -87,15 +87,7 @@ async function reviewTask(input, deps) {
     return result;
   }
 
-  // Step 1: Fetch task
-  const fetch = await fetchTask(issue_id, tracker);
-  if (!fetch.ok) return fetch.result;
-  const issue = fetch.issue;
-
-  // Step 2: Load code context (via Librarian agent)
-  const codeContext = await loadContext(issue, agentRunner, owner, repo);
-
-  // Step 3: Analyze task
+  // Step 3 re-entry: use cached issue/context when answering clarification questions
   const clarificationCount = (partial_state && partial_state.clarification_count) || 0;
   if (clarificationCount >= REVIEW_LIMITS.maxAnalysisClarifications) {
     return {
@@ -105,6 +97,24 @@ async function reviewTask(input, deps) {
     };
   }
 
+  const hasCachedContext = partial_state && partial_state.issue && partial_state.code_context;
+  let issue, codeContext;
+
+  if (hasCachedContext) {
+    // Re-entry after NeedInfo — reuse cached data
+    issue = partial_state.issue;
+    codeContext = partial_state.code_context;
+  } else {
+    // Step 1: Fetch task
+    const fetch = await fetchTask(issue_id, tracker);
+    if (!fetch.ok) return fetch.result;
+    issue = fetch.issue;
+
+    // Step 2: Load code context (via Librarian agent)
+    codeContext = await loadContext(issue, agentRunner, owner, repo);
+  }
+
+  // Step 3: Analyze task
   const previousAnswers = partial_state && partial_state.answers;
   const analyze = await analyzeTask(issue, codeContext, llm, previousAnswers);
   if (!analyze.ok) {

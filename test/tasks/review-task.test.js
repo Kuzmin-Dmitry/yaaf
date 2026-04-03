@@ -364,6 +364,40 @@ async function testUpdateIssueCalledCorrectly() {
   assert.ok(calledUpdates.addLabels.includes('reviewed:architecture'));
 }
 
+// --- Clarification re-entry uses cached context (no re-fetch) ---
+
+async function testClarificationUsesCachedContext() {
+  console.log('Test: Clarification re-entry skips fetch and agent');
+  let fetchCalled = false;
+  let agentCalled = false;
+  const tracker = {
+    fetchIssue: async () => { fetchCalled = true; return { id: '42', title: 'Test', body: '', state: 'Draft', labels: [] }; },
+    updateIssue: async () => ({}),
+  };
+  const agentRunner = {
+    runAgentJSON: async () => { agentCalled = true; return { repoTree: [], files: [], totalSize: 0 }; },
+  };
+
+  const cachedIssue = { id: '42', title: 'Test', body: '', state: 'Draft', labels: [] };
+  const cachedContext = { repoTree: [], files: [], totalSize: 0 };
+
+  await reviewTask(
+    {
+      issue_id: '42',
+      partial_state: {
+        answers: ['OAuth2 provider'],
+        issue: cachedIssue,
+        code_context: cachedContext,
+        clarification_count: 1,
+      },
+    },
+    defaultDeps({ tracker, agentRunner })
+  );
+
+  assert.strictEqual(fetchCalled, false, 'fetchIssue should not be called on clarification re-entry');
+  assert.strictEqual(agentCalled, false, 'agentRunner should not be called on clarification re-entry');
+}
+
 // Run all
 console.log('=== Review Task Tests ===');
 (async () => {
@@ -382,6 +416,7 @@ console.log('=== Review Task Tests ===');
   await testAgentRunnerFailureThrows();
   await testAgentErrorFieldThrows();
   await testUpdateIssueCalledCorrectly();
+  await testClarificationUsesCachedContext();
   console.log('All review task tests passed.');
 })().catch((err) => {
   console.error('Test failed:', err);
