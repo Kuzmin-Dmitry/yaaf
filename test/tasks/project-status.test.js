@@ -56,6 +56,8 @@ function testAggregateBasic() {
   assert.strictEqual(stats.by_status['in-review'], 1);
   assert.strictEqual(stats.by_status.unlabeled, 1);
   assert.strictEqual(stats.by_status.rework, 0);
+  assert.strictEqual(stats.by_status.draft, 0);
+  assert.strictEqual(stats.by_status.backlog, 0);
 }
 
 function testAggregateStaleDetection() {
@@ -77,6 +79,22 @@ function testAggregateUnknownStatusLabel() {
   assert.strictEqual(stats.by_status.unlabeled, 1);
 }
 
+function testAggregateDraftBacklogLabels() {
+  console.log('Test: draft/backlog/ready/done labels counted correctly');
+  const issues = [
+    { number: 1, title: 'A', labels: ['status:draft'], updated_at: '2026-04-01T12:00:00Z' },
+    { number: 2, title: 'B', labels: ['status:backlog'], updated_at: '2026-04-01T12:00:00Z' },
+    { number: 3, title: 'C', labels: ['status:ready'], updated_at: '2026-04-01T12:00:00Z' },
+    { number: 4, title: 'D', labels: ['status:done'], updated_at: '2026-04-01T12:00:00Z' },
+  ];
+  const stats = aggregateStatus(issues, 7, new Date('2026-04-02T12:00:00Z'));
+  assert.strictEqual(stats.by_status.draft, 1);
+  assert.strictEqual(stats.by_status.backlog, 1);
+  assert.strictEqual(stats.by_status.ready, 1);
+  assert.strictEqual(stats.by_status.done, 1);
+  assert.strictEqual(stats.by_status.unlabeled, 0);
+}
+
 function testAggregateMultipleStatusLabels() {
   console.log('Test: multiple status labels — picks first alphabetically');
   const issues = [
@@ -93,16 +111,16 @@ function testAggregateMultipleStatusLabels() {
 
 function testFormatBrief() {
   console.log('Test: format brief produces readable output');
-  const stats = { total_open: 5, by_status: { todo: 2, 'in-progress': 2, 'in-review': 1, rework: 0, unlabeled: 0 }, stale_count: 0 };
+  const stats = { total_open: 5, by_status: { draft: 0, backlog: 0, ready: 0, todo: 2, 'in-progress': 2, 'in-review': 1, rework: 0, done: 0, unlabeled: 0 }, stale_count: 0 };
   const brief = formatBrief('yaaf', stats);
   assert.ok(brief.includes('Status yaaf: 5 open issues.'));
-  assert.ok(brief.includes('In progress: 2'));
+  assert.ok(brief.includes('in progress: 2'));
   assert.ok(!brief.includes('Stale'));
 }
 
 function testFormatBriefWithStale() {
   console.log('Test: format brief includes stale count');
-  const stats = { total_open: 3, by_status: { todo: 3, 'in-progress': 0, 'in-review': 0, rework: 0, unlabeled: 0 }, stale_count: 2 };
+  const stats = { total_open: 3, by_status: { draft: 0, backlog: 0, ready: 0, todo: 3, 'in-progress': 0, 'in-review': 0, rework: 0, done: 0, unlabeled: 0 }, stale_count: 2 };
   const brief = formatBrief('yaaf', stats);
   assert.ok(brief.includes('Stale: 2.'));
 }
@@ -223,6 +241,7 @@ console.log('=== Project Status Tests ===');
   testAggregateBasic();
   testAggregateStaleDetection();
   testAggregateUnknownStatusLabel();
+  testAggregateDraftBacklogLabels();
   testAggregateMultipleStatusLabels();
   testFormatBrief();
   testFormatBriefWithStale();
