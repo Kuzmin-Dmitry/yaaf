@@ -2,8 +2,8 @@
 
 **Pipeline:** `review-task`
 **Runtime:** Lobster
-**Version:** 0.1 (draft)
-**Status:** Proposal
+**Version:** 0.2
+**Status:** Implemented
 
 ---
 

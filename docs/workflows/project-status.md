@@ -4,7 +4,7 @@
 
 It resolves a project alias, reads all open GitHub issues for the target repository, aggregates a concise project snapshot, and returns a PM-ready brief for delivery back to Telegram.
 
-Status: **Phase 1 implemented and tested.** PM routing (Phase 2) is not yet wired.
+Status: **Phase 1 implemented and tested.** PM routing integration planned as Phase 2.
 
 ## Scope
 

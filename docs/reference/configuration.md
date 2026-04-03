@@ -8,8 +8,6 @@ This document collects the configuration knobs and value formats used in the rep
 |---|---|---|
 | `GITHUB_TOKEN` | GitHub client, tracker adapters, Symphony adapter | Primary GitHub PAT for REST and GraphQL calls |
 | `OPENCLAW_HOME` | GitHub tracker adapter | Overrides default OpenClaw home used to find `auth-profiles.json` |
-| `TELEMETRY_DISABLED` | Telemetry agent wrapper | Disables the singleton telemetry service |
-| `TELEMETRY_DEBUG` | Telemetry service | Enables debug logging for queueing and send attempts |
 
 ## GitHub Token Resolution
 
@@ -59,15 +57,6 @@ tracker:
 | `api_key` | May be a literal token or `$ENV_NAME` |
 | `active_states` | Must be an array if present |
 | `terminal_states` | Must be an array if present |
-
-## Telemetry Defaults
-
-Current runtime defaults in `TelemetryService`:
-
-| Setting | Default |
-|---|---|
-| Batch size | `10` |
-| Batch timeout | `6000` ms |
 
 ## Validation Limits
 

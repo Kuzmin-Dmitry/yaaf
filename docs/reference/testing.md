@@ -12,7 +12,6 @@ npm test
 |---|---|
 | `test/tasks/` | Task model, task pipeline steps, `create_task`, `approve_task`, `review_task`, `publish_task`, `project_status` |
 | `test/github/` | GitHub tracker adapter (including label-based approval), Symphony adapter |
-| `test/telemetry/` | Telemetry batching and normalization |
 | `test/usage/` | Sliding-window aggregation |
 | `test/research/` | ADR/document existence and structure checks |
 
@@ -27,13 +26,12 @@ npm test
 | `project_status` pipeline, model, and aggregation | `project-status.test.js` |
 | GitHub tracker contract mapping | `tracker-adapter.test.js` (including label-based state mapping and approval transitions) |
 | Symphony GitHub adapter normalization and edge cases | `symphony-adapter.test.js` |
-| Telemetry batching and normalizer behavior | `service.test.js`, `normalizer.test.js` |
 | Aggregation windows | `aggregator.test.js` |
 
 ## What Is Not Covered by Automated Tests
 
 1. Real GitHub API integration against a live repository.
-2. Real Telegram delivery from telemetry sending.
+2. Real Telegram delivery.
 3. Full Symphony runtime integration outside the adapter layer.
 4. Live OpenClaw session orchestration.
 
@@ -51,5 +49,4 @@ Add or update tests whenever you change:
 - pipeline step behavior
 - result shape or validation limits
 - GitHub adapter normalization rules
-- telemetry batching logic
 - usage aggregation windows or counters

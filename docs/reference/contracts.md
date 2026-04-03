@@ -255,19 +255,37 @@ The normalized Symphony issue shape includes:
 }
 ```
 
-## Telemetry Wrapper Contract
+## `agentRunner` Contract
 
-`agent-wrapper.js` provides:
+`agent-runner.js` provides:
 
 ```js
-onSuccess(provider, sessionMeta, usagePayload)
-onError(provider, sessionMeta, error)
-flush(): Promise<void>
+runAgent(agentId, task, options?): Promise<string>
+runAgentJSON(agentId, task, options?): Promise<object>
 ```
 
-These helpers are intentionally safe-to-call: telemetry failures are logged and swallowed.
+- `runAgent` executes an OpenClaw agent via CLI and returns raw text output.
+- `runAgentJSON` parses the output as JSON.
+- Default timeout: 120 seconds.
+- Infrastructure failures (timeout, parse error, agent not found) throw.
 
-## `projectStatus(input, deps)`
+Used by `review_task` step 2 (`load-code-context`) to invoke the Librarian agent.
+
+## Model Exports
+
+Exported from `lobster/lib/tasks/model.js`:
+
+| Export | Value |
+|---|---|
+| `TASK_STATES` | `['Draft', 'Backlog', 'Ready', 'InProgress', 'InReview', 'Done']` |
+| `TITLE_MAX_LENGTH` | `200` |
+| `RESULT_TYPES` | `{ Ready, NeedInfo, NeedDecision, Rejected }` |
+| `STATE_LABELS` | Maps each state to its `status:*` label |
+| `APPROVAL_TRANSITIONS` | `{ Draft: 'Backlog', Backlog: 'Ready' }` |
+| `REVIEWABLE_STATES` | `['Draft', 'Backlog']` |
+| `REVIEW_LIMITS` | `{ maxAnalysisClarifications: 3, maxEditRounds: 2 }` |
+| `REVIEW_LABEL` | `'reviewed:architecture'` |
+| `validateTaskObject(task)` | Returns `{ valid, reason? }` |
 
 ### Input
 

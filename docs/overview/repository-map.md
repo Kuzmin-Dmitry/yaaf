@@ -19,15 +19,18 @@ yaaf/
 
 ### `lobster/lib/tasks/`
 
-Primary business logic for creating and publishing issues.
+Primary business logic for creating, reviewing, and publishing issues.
 
 | File | Role |
 |---|---|
 | `create-task.js` | Orchestrates the six-step `create_task` pipeline |
 | `approve-task.js` | Orchestrates the `approve_task` pipeline (Draft→Backlog→Ready via labels) |
+| `review-task.js` | Orchestrates the six-step `review_task` pipeline (fetch → analyze → rewrite → approve → update) |
 | `publish-task.js` | Orchestrates the `publish_task` pipeline |
-| `model.js` | Shared task states, result types, state labels, approval transitions, and validation helpers |
+| `project-status.js` | Orchestrates the `project_status` pipeline |
+| `model.js` | Shared task states, result types, state labels, approval transitions, review limits, and validation helpers |
 | `publish-task-model.js` | Validation and parsing rules for `publish_task` params |
+| `project-status-model.js` | Status aggregation and brief formatting |
 | `steps/*` | Small deterministic step implementations |
 
 ### `lobster/lib/github/`
@@ -42,16 +45,13 @@ GitHub connectivity and adapter layer.
 | `tracker-config.js` | Parses and validates `tracker.kind: github` config |
 | `index.js` | Aggregated exports |
 
-### `lobster/lib/telemetry/`
+### `lobster/lib/openclaw/`
 
-Session telemetry and reporting primitives.
+OpenClaw agent integration layer.
 
 | File | Role |
 |---|---|
-| `service.js` | Queueing, batching, formatting, flush lifecycle |
-| `normalizer.js` | Provider-specific usage payload normalization |
-| `agent-wrapper.js` | High-level `onSuccess`, `onError`, `flush` helpers |
-| `index.js` | Aggregated exports |
+| `agent-runner.js` | Executes OpenClaw agents via CLI (`runAgent`, `runAgentJSON`) |
 
 ### `lobster/lib/usage/`
 
@@ -60,7 +60,6 @@ In-memory aggregation of request metrics.
 | File | Role |
 |---|---|
 | `aggregator.js` | Sliding hourly window + daily aggregate logic |
-| `collector.js` | Small facade over the aggregator |
 | `index.js` | Aggregated exports |
 
 ## Workflow Definitions
@@ -68,15 +67,17 @@ In-memory aggregation of request metrics.
 | Path | Purpose |
 |---|---|
 | `lobster/workflows/create-task.lobster` | YAML-like definition of the `create_task` pipeline |
+| `lobster/workflows/approve-task.lobster` | YAML-like definition of the `approve_task` pipeline |
+| `lobster/workflows/review-task.lobster` | YAML-like definition of the `review_task` pipeline |
+| `lobster/workflows/project-status.lobster` | YAML-like definition of the `project_status` pipeline |
 | `lobster/skills/tasks.md` | Routing rules for task-related intents |
 
 ## Test Layout
 
 | Folder | What it covers |
 |---|---|
-| `test/tasks/` | `create_task`, `approve_task`, `publish_task`, and model-level behavior |
+| `test/tasks/` | `create_task`, `approve_task`, `review_task`, `publish_task`, `project_status`, and model-level behavior |
 | `test/github/` | GitHub tracker adapter and Symphony adapter behavior |
-| `test/telemetry/` | Telemetry batching and payload normalization |
 | `test/usage/` | Sliding window aggregation behavior |
 | `test/research/` | Documentation assertions for ADR-backed material |
 
@@ -86,8 +87,8 @@ In-memory aggregation of request metrics.
 |---|---|
 | Understand task creation | `lobster/lib/tasks/create-task.js`, `lobster/lib/tasks/steps/*` |
 | Understand task approval | `lobster/lib/tasks/approve-task.js`, `lobster/lib/tasks/model.js` |
+| Understand task review | `lobster/lib/tasks/review-task.js`, `lobster/lib/openclaw/agent-runner.js` |
 | Understand GitHub publishing | `lobster/lib/tasks/publish-task.js`, `lobster/lib/github/client.js` |
 | Understand Symphony support | `lobster/lib/github/symphony-adapter.js`, `lobster/lib/github/tracker-config.js` |
-| Understand telemetry | `lobster/lib/telemetry/agent-wrapper.js`, `lobster/lib/telemetry/service.js` |
-| Understand usage aggregation | `lobster/lib/usage/aggregator.js`, `lobster/lib/usage/collector.js` |
+| Understand usage aggregation | `lobster/lib/usage/aggregator.js` |
 | Understand behavior guarantees | `test/**`, `docs/reference/contracts.md`, `docs/reference/testing.md` |

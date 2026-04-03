@@ -16,7 +16,7 @@ Project documentation for YAAF as it exists in this repository today.
 | Understand direct GitHub publishing | [Workflows / Publish Task](workflows/publish-task.md) |
 | See the project status workflow | [Workflows / Project Status](workflows/project-status.md) |
 | See GitHub and Symphony integration details | [Integrations / GitHub](integrations/github.md), [Integrations / Symphony](integrations/symphony.md) |
-| Understand observability modules | [Integrations / Telemetry and Usage](integrations/telemetry-and-usage.md) |
+| Understand observability modules | [Integrations / Usage](integrations/telemetry-and-usage.md) |
 | Check contracts, config, and tests | [Reference / Contracts](reference/contracts.md), [Reference / Configuration](reference/configuration.md), [Reference / Testing](reference/testing.md) |
 
 ## Documentation Map
@@ -33,7 +33,7 @@ Project documentation for YAAF as it exists in this repository today.
 | Document | Purpose |
 |---|---|
 | [System Overview](architecture/system-overview.md) | System boundary, external dependencies, design principles, high-level data flow |
-| [Runtime Components](architecture/runtime-components.md) | Detailed breakdown of `tasks`, `github`, `telemetry`, and `usage` modules |
+| [Runtime Components](architecture/runtime-components.md) | Detailed breakdown of `tasks`, `github`, `openclaw`, and `usage` modules |
 
 ### Workflows
 
@@ -51,7 +51,7 @@ Project documentation for YAAF as it exists in this repository today.
 |---|---|
 | [GitHub](integrations/github.md) | REST/GraphQL client, tracker adapter, auth resolution, project support |
 | [Symphony](integrations/symphony.md) | GitHub adapter for Symphony, label-based states, current implementation status |
-| [Telemetry and Usage](integrations/telemetry-and-usage.md) | Session telemetry, usage normalization, in-memory aggregation, env toggles |
+| [Telemetry and Usage](integrations/telemetry-and-usage.md) | Usage aggregation, in-memory metrics, env toggles |
 
 ### Reference
 
@@ -74,5 +74,4 @@ Project documentation for YAAF as it exists in this repository today.
 |---|---|
 | [lobster/lib/tasks/index.js](../lobster/lib/tasks/index.js) | Main export surface for task-related runtime APIs |
 | [lobster/lib/github/index.js](../lobster/lib/github/index.js) | Main export surface for GitHub and Symphony adapters |
-| [lobster/lib/telemetry/index.js](../lobster/lib/telemetry/index.js) | Session telemetry entry points |
 | [lobster/lib/usage/index.js](../lobster/lib/usage/index.js) | Usage aggregation entry points |
