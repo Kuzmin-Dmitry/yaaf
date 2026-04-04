@@ -3,19 +3,15 @@
  */
 
 const assert = require('assert');
-const { validate, validateAsync, validateType, buildTask } = require('../../lobster/lib/tasks/cli/cgi-validate');
 const { publishIssue } = require('../../lobster/lib/tasks/cli/cgi-publish');
 const { resolveAlias } = require('../../lobster/lib/tasks/cli/cgi-resolve');
 const { validateType: validateTypeRich } = require('../../lobster/lib/tasks/cli/cgi-type');
 const { parseArg } = require('../../lobster/lib/tasks/cli/cli-io');
+const { checkCompleteness } = require('../../lobster/lib/tasks/steps/check-completeness');
+const { buildTaskObject } = require('../../lobster/lib/tasks/steps/build-task-object');
+const { dedupCheck } = require('../../lobster/lib/tasks/steps/dedup-check');
 
 // --- Helpers ---
-
-function mockTracker(recentTasks = []) {
-  return {
-    fetchRecentTasks: async () => recentTasks,
-  };
-}
 
 function mockGitHub(createdNumber = 42) {
   return {
@@ -94,137 +90,50 @@ function testParseArgNotFound() {
 }
 
 // ============================
-// Unit: validateType (backward compat boolean)
-// ============================
-
-function testValidateTypeKnown() {
-  console.log('Test: validateType — known types');
-  assert.ok(validateType('bug'));
-  assert.ok(validateType('feature'));
-  assert.ok(validateType('chore'));
-  assert.ok(validateType('BUG'));
-  assert.ok(validateType(' Feature '));
-}
-
-function testValidateTypeUnknown() {
-  console.log('Test: validateType — unknown types');
-  assert.ok(!validateType(''));
-  assert.ok(!validateType(null));
-  assert.ok(!validateType('epic'));
-}
-
-// ============================
-// Unit: buildTask
+// Unit: checkCompleteness + buildTaskObject (step functions)
 // ============================
 
 function testBuildTaskValid() {
-  console.log('Test: buildTask — valid');
-  const result = buildTask({ title: 'Fix bug', body: '## Summary\nDetails', type: 'bug' });
-  assert.ok(result.task);
-  assert.strictEqual(result.task.title, 'Fix bug');
-  assert.strictEqual(result.task.body, '## Summary\nDetails');
-  assert.strictEqual(result.task.type, 'bug');
-  assert.strictEqual(result.task.state, 'Draft');
+  console.log('Test: checkCompleteness + buildTaskObject — valid');
+  const parsed = { title: 'Fix bug', type: 'bug' };
+  const completeness = checkCompleteness(parsed);
+  assert.ok(completeness.complete);
+  const build = buildTaskObject(parsed);
+  assert.ok(build.valid);
+  assert.strictEqual(build.task.title, 'Fix bug');
+  assert.strictEqual(build.task.state, 'Draft');
 }
 
 function testBuildTaskMissingTitle() {
-  console.log('Test: buildTask — missing title returns NeedInfo');
-  const result = buildTask({ body: 'some body', type: 'feature' });
-  assert.strictEqual(result.type, 'NeedInfo');
-  assert.deepStrictEqual(result.missing, ['title']);
+  console.log('Test: checkCompleteness — missing title returns NeedInfo');
+  const completeness = checkCompleteness({ type: 'feature' });
+  assert.strictEqual(completeness.complete, false);
+  assert.strictEqual(completeness.result.type, 'NeedInfo');
+  assert.deepStrictEqual(completeness.result.missing, ['title']);
 }
 
 function testBuildTaskTitleTooLong() {
-  console.log('Test: buildTask — title too long returns Rejected');
-  const result = buildTask({ title: 'a'.repeat(201), type: 'bug' });
-  assert.strictEqual(result.type, 'Rejected');
-  assert.strictEqual(result.reason, 'schema_violation');
+  console.log('Test: buildTaskObject — title too long returns Rejected');
+  const build = buildTaskObject({ title: 'a'.repeat(201) });
+  assert.strictEqual(build.valid, false);
+  assert.strictEqual(build.result.type, 'Rejected');
+  assert.strictEqual(build.result.reason, 'schema_violation');
 }
 
 // ============================
-// Unit: validate (sync gates)
+// Unit: dedupCheck
 // ============================
 
-function testValidateHappyPath() {
-  console.log('Test: validate — happy path passes all sync gates');
-  const result = validate('yaaf', 'bug', 'Fix login', '## Bug\nDetails', null);
-  assert.ok(result._continue);
-  assert.strictEqual(result.project.key, 'yaaf');
-  assert.strictEqual(result.parsed.type, 'bug');
-}
-
-function testValidateUnknownProject() {
-  console.log('Test: validate — unknown project returns NeedInfo');
-  const result = validate('foobar', 'bug', 'Fix something', '', null);
-  assert.strictEqual(result.type, 'NeedInfo');
-  assert.deepStrictEqual(result.missing, ['project_alias']);
-  assert.ok(result.known_projects.length > 0);
-}
-
-function testValidateMissingProject() {
-  console.log('Test: validate — missing project returns NeedInfo');
-  const result = validate('', 'bug', 'Fix something', '', null);
-  assert.strictEqual(result.type, 'NeedInfo');
-}
-
-function testValidateUnknownType() {
-  console.log('Test: validate — unknown type returns NeedInfo');
-  const result = validate('yaaf', 'epic', 'Fix something', '', null);
-  assert.strictEqual(result.type, 'NeedInfo');
-  assert.deepStrictEqual(result.missing, ['task_type']);
-  assert.ok(result.valid_types.length > 0);
-}
-
-function testValidateMissingType() {
-  console.log('Test: validate — missing type returns NeedInfo');
-  const result = validate('yaaf', '', 'Fix something', '', null);
-  assert.strictEqual(result.type, 'NeedInfo');
-}
-
-function testValidateCaseInsensitive() {
-  console.log('Test: validate — case-insensitive alias and type');
-  const result = validate('YAAF', 'Bug', 'Fix it', '', null);
-  assert.ok(result._continue);
-}
-
-function testValidateWithPartialState() {
-  console.log('Test: validate — partial_state merges (dedup_decision)');
-  const result = validate('yaaf', 'feature', 'New thing', '', { dedup_decision: 'create_new' });
-  assert.ok(result._continue);
-  assert.strictEqual(result.parsed.dedup_decision, 'create_new');
-}
-
-// ============================
-// Unit: validateAsync (full pipeline)
-// ============================
-
-async function testValidateAsyncHappyPath() {
-  console.log('Test: validateAsync — happy path returns task + project');
-  // Mock: we need to intercept createGitHubTracker
-  // Since validateAsync creates its own tracker, we test through the exported function
-  // by setting up the module cache. For simplicity, test the sync parts here
-  // and validate the async integration via the composed pipeline test below.
-  const gate = validate('yaaf', 'bug', 'Fix login', '## Bug', null);
-  assert.ok(gate._continue);
-  const task = buildTask(gate.parsed);
-  assert.ok(task.task);
-  assert.strictEqual(task.task.title, 'Fix login');
-}
-
-async function testValidateAsyncDuplicate() {
-  console.log('Test: validate → dedup returns NeedDecision');
-  // The dedup check uses context.recentTasks from enrichContext
-  // We can test dedupCheck directly
-  const { dedupCheck } = require('../../lobster/lib/tasks/steps/dedup-check');
+function testDedupDuplicate() {
+  console.log('Test: dedupCheck — duplicate returns NeedDecision');
   const context = { recentTasks: [{ id: 'TASK-42', title: 'Fix login', state: 'Draft' }] };
   const result = dedupCheck({ title: 'Fix login', type: 'bug' }, context);
   assert.strictEqual(result.clear, false);
   assert.strictEqual(result.result.type, 'NeedDecision');
 }
 
-async function testValidateAsyncDedupSkipped() {
-  console.log('Test: validate → dedup skipped with dedup_decision');
-  const { dedupCheck } = require('../../lobster/lib/tasks/steps/dedup-check');
+function testDedupSkipped() {
+  console.log('Test: dedupCheck — skipped with dedup_decision');
   const context = { recentTasks: [{ id: 'TASK-42', title: 'Fix login', state: 'Draft' }] };
   const result = dedupCheck({ title: 'Fix login', type: 'bug', dedup_decision: 'create_new' }, context);
   assert.strictEqual(result.clear, true);
@@ -285,25 +194,31 @@ async function testPublishFailureThrows() {
 }
 
 // ============================
-// Integration: validate → publish (composed)
+// Integration: composed pipeline steps
 // ============================
 
 async function testComposedHappyPath() {
-  console.log('Test: composed — validate → publish happy path');
-  const gate = validate('yaaf', 'bug', 'Fix login bug', '## Bug\nLogin fails on invalid email', null);
-  assert.ok(gate._continue);
+  console.log('Test: composed — resolve → type → completeness → build → publish happy path');
+  const resolved = resolveAlias('yaaf');
+  assert.ok(resolved.project);
 
-  const { dedupCheck } = require('../../lobster/lib/tasks/steps/dedup-check');
-  const context = { recentTasks: [] };
-  const dedup = dedupCheck(gate.parsed, context);
+  const typeCheck = validateTypeRich('bug');
+  assert.ok(typeCheck.valid);
+
+  const parsed = { title: 'Fix login bug', body: '## Bug\nLogin fails on invalid email', type: typeCheck.normalized };
+
+  const dedup = dedupCheck(parsed, { recentTasks: [] });
   assert.ok(dedup.clear);
 
-  const build = buildTask(gate.parsed);
-  assert.ok(build.task);
+  const completeness = checkCompleteness(parsed);
+  assert.ok(completeness.complete);
 
-  const input = { task: build.task, project: { key: gate.project.key, repo: gate.project.repo } };
+  const build = buildTaskObject(parsed);
+  assert.ok(build.valid);
+
+  const task = { ...build.task, type: parsed.type, body: parsed.body };
   const github = mockGitHub(99);
-  const result = await publishIssue(input.task, input.project, github);
+  const result = await publishIssue(task, { key: resolved.project.key, repo: resolved.project.repo }, github);
 
   assert.strictEqual(result.type, 'Ready');
   assert.strictEqual(result.task.id, '99');
@@ -312,30 +227,33 @@ async function testComposedHappyPath() {
 
 async function testComposedNeedInfoShortCircuit() {
   console.log('Test: composed — NeedInfo short-circuits before publish');
-  const gate = validate('unknown', 'bug', 'Title', '', null);
-  assert.strictEqual(gate.type, 'NeedInfo');
+  const resolved = resolveAlias('unknown');
+  assert.strictEqual(resolved.type, 'NeedInfo');
   // In Lobster, cgi-publish.js would pass-through this terminal result
 }
 
 async function testComposedDedupFlow() {
   console.log('Test: composed — dedup → NeedDecision → create_new');
-  const { dedupCheck } = require('../../lobster/lib/tasks/steps/dedup-check');
+  const resolved = resolveAlias('yaaf');
+  assert.ok(resolved.project);
+
+  const typeCheck = validateTypeRich('feature');
+  assert.ok(typeCheck.valid);
+
+  const context = { recentTasks: [{ id: 'TASK-42', title: 'Add dark mode', state: 'Draft' }] };
 
   // First call: duplicate found
-  const gate1 = validate('yaaf', 'feature', 'Add dark mode', '', null);
-  assert.ok(gate1._continue);
-  const context = { recentTasks: [{ id: 'TASK-42', title: 'Add dark mode', state: 'Draft' }] };
-  const dedup1 = dedupCheck(gate1.parsed, context);
+  const parsed1 = { title: 'Add dark mode', type: typeCheck.normalized };
+  const dedup1 = dedupCheck(parsed1, context);
   assert.strictEqual(dedup1.clear, false);
 
   // Second call: user chose create_new
-  const gate2 = validate('yaaf', 'feature', 'Add dark mode', '', { dedup_decision: 'create_new' });
-  assert.ok(gate2._continue);
-  const dedup2 = dedupCheck(gate2.parsed, context);
+  const parsed2 = { title: 'Add dark mode', type: typeCheck.normalized, dedup_decision: 'create_new' };
+  const dedup2 = dedupCheck(parsed2, context);
   assert.ok(dedup2.clear);
 
-  const build = buildTask(gate2.parsed);
-  assert.ok(build.task);
+  const build = buildTaskObject(parsed2);
+  assert.ok(build.valid);
 }
 
 // Run all
@@ -355,28 +273,14 @@ console.log('=== Create GitHub Issue Tests ===');
   testValidateTypeRichValid();
   testValidateTypeRichInvalid();
 
-  // validateType (backward compat boolean)
-  testValidateTypeKnown();
-  testValidateTypeUnknown();
-
-  // buildTask
+  // checkCompleteness + buildTaskObject
   testBuildTaskValid();
   testBuildTaskMissingTitle();
   testBuildTaskTitleTooLong();
 
-  // validate (sync)
-  testValidateHappyPath();
-  testValidateUnknownProject();
-  testValidateMissingProject();
-  testValidateUnknownType();
-  testValidateMissingType();
-  testValidateCaseInsensitive();
-  testValidateWithPartialState();
-
-  // validateAsync
-  await testValidateAsyncHappyPath();
-  await testValidateAsyncDuplicate();
-  await testValidateAsyncDedupSkipped();
+  // dedupCheck
+  testDedupDuplicate();
+  testDedupSkipped();
 
   // publishIssue
   await testPublishHappyPath();

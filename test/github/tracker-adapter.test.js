@@ -221,58 +221,6 @@ async function testCreateIssueAPIError() {
   }
 }
 
-// --- E2E: adapter works with create_task pipeline ---
-
-async function testAdapterWithPipeline() {
-  console.log('Test: adapter integrates with create_task pipeline');
-  const { createTask } = require('../../lobster/lib/tasks/create-task');
-
-  const github = mockGitHubClient({
-    listIssues: async () => [
-      { number: 1, title: 'Existing task', state: 'open' },
-    ],
-  });
-
-  const tracker = createGitHubTracker({ owner: 'org', repo: 'proj', github });
-
-  const llm = {
-    extractFields: async () => ({ title: 'New feature', description: 'Add dark mode' }),
-  };
-
-  const result = await createTask(
-    { request: 'create task: New feature — add dark mode', partial_state: null },
-    { tracker, llm }
-  );
-
-  assert.strictEqual(result.type, 'Ready');
-  assert.strictEqual(result.task.id, '42');
-  assert.strictEqual(result.task.title, 'New feature');
-  assert.ok(result.task.url.includes('github.com'));
-}
-
-async function testAdapterDedupWithPipeline() {
-  console.log('Test: adapter dedup works — existing GitHub issue triggers NeedDecision');
-  const { createTask } = require('../../lobster/lib/tasks/create-task');
-
-  const github = mockGitHubClient({
-    listIssues: async () => [
-      { number: 5, title: 'Fix login bug', state: 'open' },
-    ],
-  });
-
-  const tracker = createGitHubTracker({ owner: 'org', repo: 'proj', github });
-  const llm = { extractFields: async () => ({ title: 'Fix login bug', description: '' }) };
-
-  const result = await createTask(
-    { request: 'fix login bug', partial_state: null },
-    { tracker, llm }
-  );
-
-  assert.strictEqual(result.type, 'NeedDecision');
-  assert.strictEqual(result.reason, 'duplicate_candidate');
-  assert.strictEqual(result.candidates[0].id, '5');
-}
-
 // --- resolveToken priority ---
 
 function testResolveTokenExplicit() {
@@ -449,8 +397,6 @@ console.log('=== GitHub Tracker Adapter Tests ===');
   await testApproveIssueDraftToBacklog();
   await testApproveIssueBacklogToReady();
   await testApproveIssueReadyThrows();
-  await testAdapterWithPipeline();
-  await testAdapterDedupWithPipeline();
   console.log('All GitHub tracker adapter tests passed.');
 })().catch((err) => {
   console.error('Test failed:', err);

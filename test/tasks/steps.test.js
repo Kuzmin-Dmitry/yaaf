@@ -8,7 +8,6 @@ const { parseRequest } = require('../../lobster/lib/tasks/steps/parse-request');
 const { checkCompleteness } = require('../../lobster/lib/tasks/steps/check-completeness');
 const { dedupCheck } = require('../../lobster/lib/tasks/steps/dedup-check');
 const { buildTaskObject } = require('../../lobster/lib/tasks/steps/build-task-object');
-const { publish } = require('../../lobster/lib/tasks/steps/publish');
 
 // --- Step 1: Enrich Context ---
 
@@ -173,25 +172,6 @@ function testBuildTrimsTitle() {
   assert.strictEqual(result.task.title, 'Fix login bug');
 }
 
-// --- Step 6: Publish ---
-
-async function testPublish() {
-  console.log('Test: publish creates issue and returns Ready');
-  const tracker = {
-    createIssue: async (task) => ({
-      id: 'TASK-43',
-      url: 'https://github.com/org/repo/issues/43',
-      title: task.title,
-    }),
-  };
-  const task = { title: 'Fix login bug', description: '', state: 'Draft' };
-  const result = await publish(task, tracker);
-  assert.strictEqual(result.type, 'Ready');
-  assert.strictEqual(result.task.id, 'TASK-43');
-  assert.strictEqual(result.task.title, 'Fix login bug');
-  assert.ok(result.task.url);
-}
-
 // Run all
 console.log('=== Pipeline Steps Tests ===');
 (async () => {
@@ -218,8 +198,6 @@ console.log('=== Pipeline Steps Tests ===');
   testBuildNoDescription();
   testBuildTitleTooLong();
   testBuildTrimsTitle();
-  // Step 6
-  await testPublish();
 
   console.log('All step tests passed.');
 })().catch(err => {

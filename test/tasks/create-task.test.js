@@ -1,33 +1,12 @@
 /**
- * Tests for create_task pipeline.
+ * Tests for shared validation steps used by create-github-issue pipeline.
  *
- * Tests the programmatic createTask() API
- * AND the shared step functions (merge, validate) used by create-github-issue.
+ * Tests merge() and validate() from ct-validate.js — shared step functions
+ * used by cgi-dedup.js in the Lobster pipeline.
  */
 
 const assert = require('assert');
-const { createTask } = require('../../lobster/lib/tasks/create-task');
 const { merge, validate } = require('../../lobster/lib/tasks/cli/ct-validate');
-const { publish } = require('../../lobster/lib/tasks/steps/publish');
-
-// Helper: build mock tracker
-function mockTracker(recentTasks = [], createdId = 'TASK-43') {
-  return {
-    fetchRecentTasks: async () => recentTasks,
-    createIssue: async (task) => ({
-      id: createdId,
-      url: `https://github.com/org/repo/issues/${createdId}`,
-      title: task.title,
-    }),
-  };
-}
-
-// Helper: build mock LLM
-function mockLLM(extractResult) {
-  return {
-    extractFields: async () => extractResult,
-  };
-}
 
 // ============================
 // Unit: merge (shared step)
@@ -97,30 +76,26 @@ function testValidateTitleTooLong() {
 }
 
 // ============================
-// Integration: merge → validate → publish (shared steps)
+// Integration: merge → validate
 // ============================
 
-async function testLobsterPipelineHappyPath() {
-  console.log('Test: merge → validate → publish happy path');
+function testMergeValidateHappyPath() {
+  console.log('Test: merge → validate happy path');
   const context = { recentTasks: [] };
   const parsed = merge('Fix login bug', 'Login returns 500', null);
-  const validated = validate(parsed, context);
-  assert.ok(validated.task);
-
-  const tracker = mockTracker([], 'TASK-43');
-  const result = await publish(validated.task, tracker);
-  assert.strictEqual(result.type, 'Ready');
-  assert.strictEqual(result.task.id, 'TASK-43');
+  const result = validate(parsed, context);
+  assert.ok(result.task);
+  assert.strictEqual(result.task.title, 'Fix login bug');
 }
 
-async function testLobsterPipelineNeedInfo() {
-  console.log('Test: merge → validate NeedInfo short-circuits before publish');
+function testMergeValidateNeedInfo() {
+  console.log('Test: merge → validate NeedInfo');
   const parsed = merge('', '', null);
   const result = validate(parsed, { recentTasks: [] });
   assert.strictEqual(result.type, 'NeedInfo');
 }
 
-async function testLobsterPipelineDedupFlow() {
+function testMergeValidateDedupFlow() {
   console.log('Test: merge → validate dedup → NeedDecision → create_new');
   const context = { recentTasks: [{ id: 'TASK-42', title: 'Fix bug', state: 'Draft' }] };
 
@@ -133,66 +108,6 @@ async function testLobsterPipelineDedupFlow() {
   const parsed2 = merge('Fix bug', '', { title: 'Fix bug', dedup_decision: 'create_new' });
   const result2 = validate(parsed2, context);
   assert.ok(result2.task);
-
-  const tracker = mockTracker([], 'TASK-45');
-  const result3 = await publish(result2.task, tracker);
-  assert.strictEqual(result3.type, 'Ready');
-  assert.strictEqual(result3.task.id, 'TASK-45');
-}
-
-// ============================
-// Backward compat: createTask() programmatic API
-// ============================
-
-async function testHappyPath() {
-  console.log('Test: createTask() happy path — one invocation, zero questions');
-  const result = await createTask(
-    { request: 'сделай таск "Fix login bug"', partial_state: null },
-    { tracker: mockTracker(), llm: mockLLM({ title: 'Fix login bug', description: 'Login page returns 500' }) }
-  );
-  assert.strictEqual(result.type, 'Ready');
-  assert.strictEqual(result.task.id, 'TASK-43');
-}
-
-async function testMissingTitleCompat() {
-  console.log('Test: createTask() missing title — NeedInfo');
-  const result = await createTask(
-    { request: 'сделай таск', partial_state: null },
-    { tracker: mockTracker(), llm: mockLLM({ title: '', description: 'not working' }) }
-  );
-  assert.strictEqual(result.type, 'NeedInfo');
-  assert.deepStrictEqual(result.missing, ['title']);
-}
-
-async function testDuplicateCompat() {
-  console.log('Test: createTask() duplicate — NeedDecision');
-  const result = await createTask(
-    { request: 'fix login', partial_state: null },
-    { tracker: mockTracker([{ id: 'TASK-42', title: 'Fix login bug', state: 'Draft' }]), llm: mockLLM({ title: 'Fix login bug', description: '' }) }
-  );
-  assert.strictEqual(result.type, 'NeedDecision');
-}
-
-async function testRejectedCompat() {
-  console.log('Test: createTask() rejected — title too long');
-  const result = await createTask(
-    { request: 'long', partial_state: null },
-    { tracker: mockTracker(), llm: mockLLM({ title: 'a'.repeat(201), description: '' }) }
-  );
-  assert.strictEqual(result.type, 'Rejected');
-}
-
-async function testTrackerErrorCompat() {
-  console.log('Test: createTask() tracker failure — throws');
-  try {
-    await createTask(
-      { request: 'test', partial_state: null },
-      { tracker: { fetchRecentTasks: async () => { throw new Error('Connection refused'); } }, llm: mockLLM({ title: 'T', description: '' }) }
-    );
-    assert.fail('Should have thrown');
-  } catch (err) {
-    assert.strictEqual(err.message, 'Connection refused');
-  }
 }
 
 // Run all
@@ -210,17 +125,10 @@ console.log('=== Create Task Pipeline Tests ===');
   testValidateDedupSkippedWithDecision();
   testValidateTitleTooLong();
 
-  // Integration: shared step functions
-  await testLobsterPipelineHappyPath();
-  await testLobsterPipelineNeedInfo();
-  await testLobsterPipelineDedupFlow();
-
-  // Programmatic API: createTask()
-  await testHappyPath();
-  await testMissingTitleCompat();
-  await testDuplicateCompat();
-  await testRejectedCompat();
-  await testTrackerErrorCompat();
+  // Integration: merge → validate
+  testMergeValidateHappyPath();
+  testMergeValidateNeedInfo();
+  testMergeValidateDedupFlow();
 
   console.log('All pipeline tests passed.');
 })().catch(err => {
