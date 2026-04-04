@@ -90,7 +90,7 @@ flowchart TD
 
 **Current duplicate handling** — `create_task` returns `NeedDecision` when it finds a case-insensitive exact title match among non-`Done` tasks. If the user chooses to create a new task, PM re-invokes with `dedup_decision: "create_new"`. Choosing an existing task is outside `create_task` and belongs to a future `update_task` flow.
 
-See [docs/workflows/create-task.md](docs/workflows/create-task.md) for the main workflow, [docs/workflows/approve-task.md](docs/workflows/approve-task.md) for the approval pipeline, [docs/reference/contracts.md](docs/reference/contracts.md) for runtime contracts, and [docs/index.md](docs/index.md) for the full documentation map.
+See [docs/workflows/create-github-issue.md](docs/workflows/create-github-issue.md) for the main workflow, [docs/workflows/approve-task.md](docs/workflows/approve-task.md) for the approval pipeline, [docs/reference/contracts.md](docs/reference/contracts.md) for runtime contracts, and [docs/index.md](docs/index.md) for the full documentation map.
 
 ---
 
@@ -134,22 +134,19 @@ const ready = await approveTask({ issue_id: result.task.id }, { tracker });
 
 ```
 yaaf/
-├── lobster/          # Lobster — workflows, skills, and runtime modules
+├── lobster/          # Lobster — workflows and runtime modules
 │   ├── lib/
-│   │   ├── tasks/    # create_task + approve_task + publish_task pipelines
+│   │   ├── tasks/    # create_task + approve_task + review_task + publish_task pipelines
 │   │   ├── github/   # GitHub REST/GraphQL client + tracker adapters
-│   │   ├── telemetry/ # Session telemetry service
+│   │   ├── openclaw/ # OpenClaw agent runner
 │   │   └── usage/    # Hourly/daily usage aggregator
-│   ├── workflows/
-│   │   └── create-task.lobster
-│   └── skills/
-│       └── tasks.md  # Intent routing rules
+│   └── workflows/    # Pipeline definitions (.lobster)
 ├── docs/             # All project documentation
 │   ├── index.md      # Navigation hub
 │   ├── overview/     # Product overview and repository map
 │   ├── architecture/ # System boundary and runtime component docs
 │   ├── workflows/    # Main execution flows
-│   ├── integrations/ # GitHub, Symphony, telemetry, usage
+│   ├── integrations/ # GitHub, Symphony, usage
 │   ├── reference/    # Contracts, config, testing
 │   └── decisions/    # Architecture Decision Records (ADR)
 ├── test/             # Test suites

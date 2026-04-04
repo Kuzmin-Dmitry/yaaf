@@ -10,7 +10,7 @@
 ## Project Snapshot
 
 - YAAF is a Node.js/CommonJS codebase for OpenClaw-driven task pipelines.
-- The main product surface in this repo is `create_task`: enrich -> parse -> completeness -> dedup -> build -> publish, `approve_task`: fetch -> validate -> approve (Draft→Backlog→Ready via GitHub labels), and `review_task`: fetch -> load-code-context -> analyze -> rewrite -> submit-for-approval -> update-issue.
+- The main product surface in this repo is `create-github-issue` (Lobster workflow: resolve → type → enrich → review → dedup → approve → publish), `approve_task`: fetch -> validate -> approve (Draft→Backlog→Ready via GitHub labels), and `review_task`: fetch -> load-code-context -> analyze -> rewrite -> submit-for-approval -> update-issue. Legacy programmatic API: `create_task` (enrich → parse → completeness → dedup → build → publish).
 - Runtime code lives in `lobster/lib/`; workflow specs live in `lobster/workflows/`; docs live in `docs/`; verification lives in `test/`.
 - This repo rewards deterministic code, explicit contracts, and small diffs.
 
@@ -21,16 +21,18 @@ Use targeted checks while iterating. Run the full suite before finishing non-tri
 ```bash
 npm test
 node test/tasks/create-task.test.js
+node test/tasks/create-github-issue.test.js
 node test/tasks/approve-task.test.js
 node test/tasks/steps.test.js
 node test/tasks/publish-task.test.js
+node test/tasks/publish-task-model.test.js
+node test/tasks/publish-task-steps.test.js
 node test/tasks/review-task.test.js
 node test/tasks/project-status.test.js
 node test/tasks/model.test.js
 node test/github/tracker-adapter.test.js
 node test/github/symphony-adapter.test.js
 node test/usage/aggregator.test.js
-node test/research/monitoring-tool-selection.test.js
 ```
 
 Notes:
@@ -69,7 +71,8 @@ if (!completeness.complete) {
 
 ## Good References
 
-- `lobster/lib/tasks/create-task.js` - canonical six-step orchestration.
+- `lobster/workflows/create-github-issue.lobster` - canonical task creation workflow (source of truth).
+- `lobster/lib/tasks/create-task.js` - legacy programmatic API (backward compat and tests).
 - `lobster/lib/tasks/approve-task.js` - three-step approval orchestration (fetch → validate → approve).
 - `lobster/lib/tasks/review-task.js` - six-step architectural review (fetch → load-code-context → analyze → rewrite → submit → update).
 - `lobster/lib/tasks/model.js` - result types, states, state labels, approval transitions, review limits, and validation helpers.
@@ -77,7 +80,7 @@ if (!completeness.complete) {
 - `test/tasks/create-task.test.js` - expected test structure and mock style.
 - `test/tasks/approve-task.test.js` - approval pipeline test scenarios.
 - `test/tasks/review-task.test.js` - review pipeline test scenarios.
-- `docs/workflows/create-task.md` - workflow behavior and invariants.
+- `docs/workflows/create-github-issue.md` - workflow behavior and invariants.
 - `docs/workflows/approve-task.md` - approval workflow and state transitions.
 - `docs/workflows/review-task.md` - review workflow and pipeline steps.
 - `docs/reference/contracts.md` and `docs/reference/testing.md` - source of truth for contracts and test coverage.

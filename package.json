@@ -4,7 +4,7 @@
   "description": "YAAF — Yet Another AI Factory. Autonomous task creation and publishing pipeline for OpenClaw agents.",
   "main": "lobster/lib/tasks/index.js",
   "scripts": {
-    "test": "node test/research/monitoring-tool-selection.test.js && node test/usage/aggregator.test.js && node test/tasks/model.test.js && node test/tasks/steps.test.js && node test/tasks/create-task.test.js && node test/tasks/approve-task.test.js && node test/tasks/publish-task-model.test.js && node test/tasks/publish-task-steps.test.js && node test/tasks/publish-task.test.js && node test/github/tracker-adapter.test.js && node test/github/symphony-adapter.test.js && node test/tasks/project-status.test.js && node test/tasks/review-task.test.js"
+    "test": "node test/usage/aggregator.test.js && node test/tasks/model.test.js && node test/tasks/steps.test.js && node test/tasks/create-task.test.js && node test/tasks/approve-task.test.js && node test/tasks/publish-task-model.test.js && node test/tasks/publish-task-steps.test.js && node test/tasks/publish-task.test.js && node test/github/tracker-adapter.test.js && node test/github/symphony-adapter.test.js && node test/tasks/project-status.test.js && node test/tasks/review-task.test.js && node test/tasks/create-github-issue.test.js"
   },
   "author": "",
   "license": "MIT",
