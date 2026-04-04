@@ -1,160 +1,172 @@
 # YAAF — Yet Another AI Factory
 
-> Autonomous software development pipeline powered by the **OpenClaw** ecosystem.
-> Human gives the idea. Agents deliver the Pull Request.
+> Human gives the idea. Agents deliver the Release.
 
 ---
 
-## Vision
+## What is YAAF
 
-YAAF is a **24/7 conveyor-belt factory** for software features. A human submits a high-level request — for example, *"Add WS2016 support to Packer templates"* — and a team of specialized AI agents carries it through specification, architecture, implementation, quality assurance, and documentation, producing a ready-to-merge Pull Request with passing tests and updated docs.
+**YAAF is an autonomous software delivery conveyor.**
+You describe what needs to be done — “Fix the login bug”, “Add WS2025 support to Packer templates” — and the system carries it from request to release.
 
-**Core principles:**
+That includes specification, architectural reasoning, implementation, testing, documentation, and publishing.
 
-- **Zero-intervention execution** — once a feature request is accepted, no human action is required until the final review.
-- **Stateless pipelines** — each pipeline invocation is self-contained; clarification context is passed via `partial_state`.
-- **Adversarial quality gates** — a dedicated QA agent validates every output before the pipeline advances.
+No manual pipeline stitching. No agent choreography. No “who owns this step?” meetings.
 
----
-
-## Stack
-
-| Component | Role |
-|-----------|------|
-| **OpenClaw** | AI agent runtime — manages agent sessions, tool invocations, and inter-agent communication. |
-| **Lobster** | Workflow execution runtime — runs skill definitions, tool invocations, and iterative loops (code → validate → fix). |
+You get a shipped result: code merged, tests passing, docs updated, release published.
 
 ---
 
-## Task Management
+## Who it’s for
 
-YAAF includes a conversational task creation flow. Users send natural language messages (e.g. "сделай таск на фикс логина") and the system structures the request and publishes it to GitHub Issues.
+**YAAF is for people who care about outcomes more than implementation mechanics.**
 
-```mermaid
-flowchart TD
-    User([👤 User in Telegram]) -->|"сделай таск на фикс логина"| Main["agent.main\n― intent classification"]
-    Main -->|task intent detected| PM["agent.pm\n― conversational orchestrator"]
-    PM -->|"invoke(request, partial_state)"| Pipeline
+You submit tasks, track them via GitHub Issues, and step in only when the system genuinely needs input — clarification or approval.
 
-    subgraph Pipeline["create_task pipeline"]
-        direction TB
-        S1["1 · enrich context\n↓ fetch recent tasks from tracker"]
-        S2["2 · parse request\n↓ LLM extracts title + optional description"]
-        S3{"3 · title present?"}
-        S4{"4 · duplicate?"}
-        S5{"5 · valid schema?"}
-        S6["6 · publish\n↓ POST to GitHub Issues"]
+You don’t:
 
-        S1 --> S2 --> S3
-        S3 -->|"✓ title present"| S4
-        S4 -->|"✓ no match"| S5
-        S5 -->|"✓ valid"| S6
-    end
+* wire agents together
+* design pipelines
+* babysit execution
 
-    S3 -->|"✗ title missing"| NI["NeedInfo\nmissing: title"]
-    S4 -->|"✗ TASK-42 found"| ND["NeedDecision\nduplicate candidate"]
-    S5 -->|"✗ title > 200 chars"| RJ["Rejected\nschema violation"]
-    S6 -->|"✓"| OK["Ready\nTASK-43 created"]
+You do:
 
-    NI -->|PM asks open question| PM
-    ND -->|PM presents options| PM
-    PM -->|clarification answer| Pipeline
+* state intent
+* answer questions when ambiguity matters
+* decide when work is allowed to start
 
-    OK --> PM
-    PM -->|"✅ Создал TASK-43"| User
-    RJ --> PM
-    PM -->|"❌ explain reason"| User
-
-    classDef agent fill:#E8F0FE,stroke:#4285F4
-    classDef step fill:#F3F3F3,stroke:#666
-    classDef ok fill:#EAF3DE,stroke:#3B6D11
-    classDef warn fill:#FAEEDA,stroke:#854F0B
-    classDef err fill:#FCEBEB,stroke:#A32D2D
-
-    class Main,PM agent
-    class S1,S2 step
-    class OK ok
-    class NI,ND warn
-    class RJ err
-```
-
-**Three layers, strict boundaries:**
-
-| Layer | Component | Does | Does NOT |
-|-------|-----------|------|----------|
-| **Routing** | `agent.main` | Detect task intent, delegate to PM | Know task fields or pipeline |
-| **Orchestration** | `agent.pm` | Run clarification loop, assemble `partial_state` | Parse NL into structured fields |
-| **Execution** | `create_task` | Extract fields, require title, exact-match dedup, publish new task | Talk to user or manage clarification loop |
-
-**Clarification loop** — if the pipeline returns `NeedInfo` or `NeedDecision`, PM asks the user and re-invokes with accumulated context (`partial_state`). The max 3 re-invocations limit is enforced by `agent.pm`, not by `create_task` itself.
-
-**Current duplicate handling** — `create_task` returns `NeedDecision` when it finds a case-insensitive exact title match among non-`Done` tasks. If the user chooses to create a new task, PM re-invokes with `dedup_decision: "create_new"`. Choosing an existing task is outside `create_task` and belongs to a future `update_task` flow.
-
-See [docs/workflows/create-github-issue.md](docs/workflows/create-github-issue.md) for the main workflow, [docs/workflows/approve-task.md](docs/workflows/approve-task.md) for the approval pipeline, [docs/reference/contracts.md](docs/reference/contracts.md) for runtime contracts, and [docs/index.md](docs/index.md) for the full documentation map.
+If you want to control every line of code, this will feel wrong.
+If you want the system to carry work end-to-end, it will feel obvious.
 
 ---
 
-## Quick Start
+## How it works
 
-### Prerequisites
+YAAF is not a single model loop. It’s a coordinated system of three layers:
 
-- Node.js runtime.
-- `GITHUB_TOKEN` environment variable set (GitHub PAT with repo scope).
-- This repository cloned locally.
+**OpenClaw**
+Agent runtime. Handles routing, sessions, tool access, and inter-agent communication.
 
-### Run tests
+**Lobster**
+Pipeline definition. Typed JSON workflows with explicit steps, approval gates, and LLM invocations.
+
+**Symphony**
+Execution orchestrator. Continuously polls GitHub Issues, dispatches runs, manages retries, and keeps the system moving 24/7.
+
+Together, they turn a static request into a progressing execution.
+
+---
+
+## Core capabilities
+
+* **Zero-intervention delivery**
+  Once a task is accepted, it can proceed to release without further human involvement.
+
+* **Natural-language input**
+  The interface is plain text. The system translates it into structured execution.
+
+* **Architectural review**
+  Tasks are analyzed against the codebase, risks are surfaced, and the request is rewritten into an implementation-ready spec.
+
+* **Multi-turn clarification**
+  If the task is underspecified, the system asks. Answers are fed back into the pipeline, not lost in chat history.
+
+* **Duplicate detection**
+  Similar tasks are caught before they become parallel workstreams.
+
+* **Two-step approval**
+  Draft → Backlog → Ready. You control when execution is allowed to start.
+
+* **GitHub-native tracking**
+  State is encoded in labels. No separate UI required.
+
+* **Operational visibility**
+  Aggregated state, stale task detection, and reporting (including Telegram) give you a system-level view.
+
+* **Adversarial quality gates**
+  A dedicated QA agent validates outputs before the pipeline advances. “Looks fine” is not a passing state.
+
+* **Stateless pipelines**
+  Each run is self-contained. Context travels explicitly via `partial_state`, not implicit memory.
+
+---
+
+## The core idea
+
+YAAF treats software delivery as a system, not a sequence of coordinated manual steps.
+
+You don’t move tasks through stages.
+The system moves tasks for you.
+
+You don’t manage the pipeline.
+You define intent and constraints.
+
+Everything else is execution.
+
+---
+
+Если присмотреться, тут есть лёгкий сдвиг:
+это уже не “инструмент для разработки”, а **интерфейс к доставке софта как процессу**.
+И именно это лучше всего считывается, когда текст не пытается быть “продающим”, а просто спокойно фиксирует, как устроена реальность.
+
+
+## Prerequisites
+
+Before using YAAF, ensure you have:
+
+- **Node.js** (current LTS) — runtime for all pipelines
+- **GitHub Personal Access Token** with `repo` scope — for issue tracking and publishing
+- **OpenClaw CLI** (optional) — only needed for the architectural review pipeline's Librarian agent
+
+## Get started
+
+### 1. Clone and install
 
 ```bash
-npm test
+git clone https://github.com/Kuzmin-Dmitry/yaaf.git
+cd yaaf
 ```
 
-### Use the pipeline programmatically
+No `npm install` needed — zero external dependencies.
 
-```js
-const { createTask, approveTask } = require('./lobster/lib/tasks');
-const { createGitHubTracker } = require('./lobster/lib/github');
+### 2. Configure
 
-const tracker = createGitHubTracker({ owner: 'org', repo: 'project' });
+Set your GitHub token:
 
-// Create a task (starts in Draft with status:draft label)
-const result = await createTask({ request: 'Fix login bug', partial_state: null }, { tracker, llm });
-
-// Approve: Draft → Backlog
-const approval = await approveTask({ issue_id: result.task.id }, { tracker });
-// approval.task.newState === 'Backlog'
-
-// Approve again: Backlog → Ready
-const ready = await approveTask({ issue_id: result.task.id }, { tracker });
-// ready.task.newState === 'Ready'
+```bash
+export GITHUB_TOKEN=ghp_your_token_here
 ```
 
----
+See [docs/setup.md](docs/setup.md) for full configuration options, dry-run mode, and Lobster CLI usage.
 
-## Repository Structure
+## Documentation
+
+| Document | What you learn |
+|----------|---------------|
+| [Overview](docs/overview.md) | How the conveyor works, what each component does, when the system asks for your input |
+| [Task Lifecycle](docs/task-lifecycle.md) | Task states (Draft → Backlog → Ready → Done), result types, GitHub label mapping |
+| [Workflows](docs/workflows.md) | Each pipeline step-by-step — create issue, approve, review, project status |
+| [Setup](docs/setup.md) | Environment variables, tracker configuration, programmatic and CLI usage |
+| [Troubleshooting](docs/troubleshooting.md) | Error messages, API failures, timeouts, retry behavior |
+
+**Recommended reading order:** Overview → Task Lifecycle → Setup
+
+## Project structure
 
 ```
 yaaf/
-├── lobster/          # Lobster — workflows and runtime modules
+├── lobster/
 │   ├── lib/
-│   │   ├── tasks/    # create_task + approve_task + review_task + publish_task pipelines
-│   │   ├── github/   # GitHub REST/GraphQL client + tracker adapters
-│   │   ├── openclaw/ # OpenClaw agent runner
-│   │   └── usage/    # Hourly/daily usage aggregator
-│   └── workflows/    # Pipeline definitions (.lobster)
-├── docs/             # All project documentation
-│   ├── index.md      # Navigation hub
-│   ├── overview/     # Product overview and repository map
-│   ├── architecture/ # System boundary and runtime component docs
-│   ├── workflows/    # Main execution flows
-│   ├── integrations/ # GitHub, Symphony, usage
-│   ├── reference/    # Contracts, config, testing
-│   └── decisions/    # Architecture Decision Records (ADR)
-├── test/             # Test suites
+│   │   ├── tasks/      # Pipelines: approve, review, publish, project status
+│   │   ├── github/     # GitHub API client, tracker adapters, Symphony integration
+│   │   ├── openclaw/   # OpenClaw agent runner
+│   │   └── usage/      # Usage metrics aggregator
+│   └── workflows/      # Lobster pipeline definitions (.lobster)
+├── docs/                # User-facing documentation
+├── test/                # Test suites (all mocked, zero dependencies)
 └── README.md
 ```
 
----
-
 ## License
 
-See [LICENSE](LICENSE).
+[MIT](LICENSE)
