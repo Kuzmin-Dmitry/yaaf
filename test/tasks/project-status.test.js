@@ -1,10 +1,15 @@
 /**
- * Tests for project_status pipeline.
+ * Tests for project_status Lobster pipeline steps.
+ *
+ * Unit tests for each CLI step function + model functions.
+ * Steps: resolve → fetch → aggregate (piped via Lobster).
  */
 
 const assert = require('assert');
-const { projectStatus } = require('../../lobster/lib/tasks/project-status');
-const { aggregateStatus, formatBrief } = require('../../lobster/lib/tasks/project-status-model');
+const { resolve } = require('../../lobster/lib/tasks/cli/ps-resolve');
+const { fetchAllOpenIssues } = require('../../lobster/lib/tasks/cli/ps-fetch');
+const { aggregate } = require('../../lobster/lib/tasks/cli/ps-aggregate');
+const { aggregateStatus, formatBrief, formatTelegramBrief, resolveProject, listKnownProjects } = require('../../lobster/lib/tasks/project-status-model');
 
 // --- Helpers ---
 
@@ -15,10 +20,6 @@ function mockGitHub(pages) {
       return pages[page - 1] || [];
     },
   };
-}
-
-function mockClock(iso = '2026-04-02T12:00:00.000Z') {
-  return { now: () => new Date(iso) };
 }
 
 function ghIssue(number, title, { labels = [], isPR = false, updated_at = '2026-04-01T12:00:00Z' } = {}) {
@@ -33,6 +34,114 @@ function ghIssue(number, title, { labels = [], isPR = false, updated_at = '2026-
   };
   if (isPR) issue.pull_request = { url: 'https://api.github.com/...' };
   return issue;
+}
+
+// ============================
+// Unit: resolveProject / listKnownProjects
+// ============================
+
+function testResolveKnown() {
+  console.log('Test: resolveProject finds known alias');
+  const p = resolveProject('yaaf');
+  assert.ok(p);
+  assert.strictEqual(p.key, 'yaaf');
+  assert.strictEqual(p.repo, 'Kuzmin-Dmitry/yaaf');
+}
+
+function testResolveCaseInsensitive() {
+  console.log('Test: resolveProject is case-insensitive');
+  assert.ok(resolveProject('YAAF'));
+  assert.ok(resolveProject(' Yaaf '));
+}
+
+function testResolveUnknown() {
+  console.log('Test: resolveProject returns null for unknown');
+  assert.strictEqual(resolveProject('foobar'), null);
+  assert.strictEqual(resolveProject(null), null);
+  assert.strictEqual(resolveProject(''), null);
+}
+
+function testListKnown() {
+  console.log('Test: listKnownProjects returns all projects');
+  const list = listKnownProjects();
+  assert.ok(list.length > 0);
+  assert.ok(list[0].key);
+  assert.ok(list[0].repo);
+}
+
+// ============================
+// Unit: resolve step
+// ============================
+
+function testResolveStepKnown() {
+  console.log('Test: resolve step — known alias returns project');
+  const result = resolve('yaaf');
+  assert.ok(result.project);
+  assert.strictEqual(result.project.key, 'yaaf');
+  assert.ok(!result.type);
+}
+
+function testResolveStepUnknown() {
+  console.log('Test: resolve step — unknown alias returns NeedInfo');
+  const result = resolve('foobar');
+  assert.strictEqual(result.type, 'NeedInfo');
+  assert.deepStrictEqual(result.missing, ['project_alias']);
+  assert.ok(result.known_projects.length > 0);
+}
+
+function testResolveStepNull() {
+  console.log('Test: resolve step — null alias returns NeedInfo');
+  const result = resolve(null);
+  assert.strictEqual(result.type, 'NeedInfo');
+}
+
+function testResolveStepCaseInsensitive() {
+  console.log('Test: resolve step — case-insensitive');
+  const result = resolve('YAAF');
+  assert.ok(result.project);
+  assert.strictEqual(result.project.key, 'yaaf');
+}
+
+// ============================
+// Unit: fetchAllOpenIssues
+// ============================
+
+async function testFetchFiltersPRs() {
+  console.log('Test: fetch filters out pull requests');
+  const github = mockGitHub([[
+    ghIssue(1, 'Real issue'),
+    ghIssue(2, 'A PR', { isPR: true }),
+  ]]);
+  const issues = await fetchAllOpenIssues(github, 'Kuzmin-Dmitry', 'yaaf');
+  assert.strictEqual(issues.length, 1);
+  assert.strictEqual(issues[0].number, 1);
+}
+
+async function testFetchPaginates() {
+  console.log('Test: fetch paginates through multiple pages');
+  const page1 = Array.from({ length: 100 }, (_, i) => ghIssue(i + 1, `Issue ${i + 1}`));
+  const page2 = [ghIssue(101, 'Issue 101')];
+  const github = mockGitHub([page1, page2]);
+  const issues = await fetchAllOpenIssues(github, 'Kuzmin-Dmitry', 'yaaf');
+  assert.strictEqual(issues.length, 101);
+}
+
+async function testFetchEmpty() {
+  console.log('Test: fetch handles empty repo');
+  const github = mockGitHub([[]]);
+  const issues = await fetchAllOpenIssues(github, 'Kuzmin-Dmitry', 'yaaf');
+  assert.strictEqual(issues.length, 0);
+}
+
+async function testFetchFailureThrows() {
+  console.log('Test: fetch throws on GitHub failure');
+  const failing = { listIssues: async () => { throw new Error('Connection refused'); } };
+  try {
+    await fetchAllOpenIssues(failing, 'Kuzmin-Dmitry', 'yaaf');
+    assert.fail('Should have thrown');
+  } catch (err) {
+    assert.strictEqual(err.message, 'Connection refused');
+  }
 }
 
 // ============================
@@ -110,11 +219,13 @@ function testAggregateMultipleStatusLabels() {
 // ============================
 
 function testFormatBrief() {
-  console.log('Test: format brief produces readable output');
+  console.log('Test: format brief — plain-text version of telegram brief');
   const stats = { total_open: 5, by_status: { draft: 0, backlog: 0, ready: 0, todo: 2, 'in-progress': 2, 'in-review': 1, rework: 0, done: 0, unlabeled: 0 }, stale_count: 0 };
   const brief = formatBrief('yaaf', stats);
-  assert.ok(brief.includes('Status yaaf: 5 open issues.'));
-  assert.ok(brief.includes('in progress: 2'));
+  assert.ok(brief.includes('Status: yaaf'));
+  assert.ok(brief.includes('5 open'));
+  assert.ok(brief.includes('in-progress: 2'));
+  assert.ok(!brief.includes('<b>'), 'no HTML tags in plain brief');
   assert.ok(!brief.includes('Stale'));
 }
 
@@ -122,138 +233,160 @@ function testFormatBriefWithStale() {
   console.log('Test: format brief includes stale count');
   const stats = { total_open: 3, by_status: { draft: 0, backlog: 0, ready: 0, todo: 3, 'in-progress': 0, 'in-review': 0, rework: 0, done: 0, unlabeled: 0 }, stale_count: 2 };
   const brief = formatBrief('yaaf', stats);
-  assert.ok(brief.includes('Stale: 2.'));
+  assert.ok(brief.includes('Stale: 2'));
 }
 
 // ============================
-// E2E: projectStatus pipeline
+// Unit: formatTelegramBrief
 // ============================
 
-async function testHappyPath() {
-  console.log('Test: happy path — Ready with stats');
-  const issues = [
-    ghIssue(1, 'Fix auth flow', { labels: ['status:in-progress'] }),
-    ghIssue(2, 'Add tests', { labels: ['status:todo'] }),
-    ghIssue(3, 'Review API', { labels: ['status:in-review'] }),
-    ghIssue(4, 'Bug report'),
-  ];
+function testTelegramBriefFormat() {
+  console.log('Test: telegram brief — HTML tags, one status per line, empty compact');
+  const stats = { total_open: 3, by_status: { draft: 1, backlog: 1, ready: 0, todo: 1, 'in-progress': 0, 'in-review': 0, rework: 0, done: 0, unlabeled: 0 }, stale_count: 1 };
+  const tg = formatTelegramBrief('yaaf', stats);
+  // HTML bold header
+  assert.ok(tg.includes('<b>Status: yaaf</b>'));
+  // Each status on its own line
+  const lines = tg.split('\n');
+  assert.ok(lines.some(l => l.includes('draft: 1')));
+  assert.ok(lines.some(l => l.includes('backlog: 1')));
+  assert.ok(lines.some(l => l.includes('todo: 1')));
+  assert.ok(lines.some(l => l.includes('Stale: 1')));
+  // Zero statuses omitted
+  assert.ok(!tg.includes('in-progress'));
 
-  const result = await projectStatus(
-    { request: 'дай статус по проекту yaaf', project_alias: 'yaaf' },
-    { github: mockGitHub([issues]), clock: mockClock() }
-  );
+  // Empty: only header line
+  const empty = { total_open: 0, by_status: { draft: 0, backlog: 0, ready: 0, todo: 0, 'in-progress': 0, 'in-review': 0, rework: 0, done: 0, unlabeled: 0 }, stale_count: 0 };
+  const tgEmpty = formatTelegramBrief('yaaf', empty);
+  assert.strictEqual(tgEmpty.split('\n').filter(l => l.trim()).length, 1);
+}
 
+// ============================
+// Unit: aggregate step
+// ============================
+
+function testAggregateStepReady() {
+  console.log('Test: aggregate step — produces Ready result');
+  const input = {
+    project: { key: 'yaaf', repo: 'Kuzmin-Dmitry/yaaf', stale_after_days: 7 },
+    issues: [
+      { number: 1, title: 'A', labels: ['status:todo'], updated_at: '2026-04-01T12:00:00Z' },
+      { number: 2, title: 'B', labels: ['status:in-progress'], updated_at: '2026-04-01T12:00:00Z' },
+    ],
+  };
+  const result = aggregate(input, new Date('2026-04-02T12:00:00Z'));
   assert.strictEqual(result.type, 'Ready');
   assert.strictEqual(result.project.key, 'yaaf');
-  assert.strictEqual(result.stats.total_open, 4);
-  assert.ok(result.brief.includes('Status yaaf'));
+  assert.strictEqual(result.stats.total_open, 2);
+  assert.ok(result.brief.includes('Status: yaaf'));
+  assert.ok(result.telegram_brief.includes('<b>Status: yaaf</b>'));
   assert.ok(result.generated_at);
 }
 
-async function testNeedInfoMissingAlias() {
-  console.log('Test: missing alias — NeedInfo');
-  const result = await projectStatus(
-    { request: 'дай статус', project_alias: null },
-    { github: mockGitHub([]), clock: mockClock() }
-  );
-
-  assert.strictEqual(result.type, 'NeedInfo');
-  assert.deepStrictEqual(result.missing, ['project_alias']);
-  assert.ok(result.known_projects.length > 0);
-}
-
-async function testNeedInfoUnknownAlias() {
-  console.log('Test: unknown alias — NeedInfo');
-  const result = await projectStatus(
-    { request: 'status foobar', project_alias: 'foobar' },
-    { github: mockGitHub([]), clock: mockClock() }
-  );
-
-  assert.strictEqual(result.type, 'NeedInfo');
-}
-
-async function testFiltersPullRequests() {
-  console.log('Test: filters out pull requests');
-  const issues = [
-    ghIssue(1, 'Real issue'),
-    ghIssue(2, 'A PR', { isPR: true }),
-  ];
-
-  const result = await projectStatus(
-    { request: 'status yaaf', project_alias: 'yaaf' },
-    { github: mockGitHub([issues]), clock: mockClock() }
-  );
-
-  assert.strictEqual(result.stats.total_open, 1);
-}
-
-async function testPagination() {
-  console.log('Test: paginates through multiple pages');
-  const page1 = Array.from({ length: 100 }, (_, i) => ghIssue(i + 1, `Issue ${i + 1}`));
-  const page2 = [ghIssue(101, 'Issue 101')];
-
-  const result = await projectStatus(
-    { request: 'status yaaf', project_alias: 'yaaf' },
-    { github: mockGitHub([page1, page2]), clock: mockClock() }
-  );
-
-  assert.strictEqual(result.stats.total_open, 101);
-}
-
-async function testEmptyRepo() {
-  console.log('Test: empty repo — Ready with zeros');
-  const result = await projectStatus(
-    { request: 'status yaaf', project_alias: 'yaaf' },
-    { github: mockGitHub([[]]), clock: mockClock() }
-  );
-
+function testAggregateStepEmpty() {
+  console.log('Test: aggregate step — empty issues produce Ready with zeros');
+  const input = {
+    project: { key: 'yaaf', repo: 'Kuzmin-Dmitry/yaaf', stale_after_days: 7 },
+    issues: [],
+  };
+  const result = aggregate(input, new Date('2026-04-02T12:00:00Z'));
   assert.strictEqual(result.type, 'Ready');
   assert.strictEqual(result.stats.total_open, 0);
 }
 
-async function testGitHubFailureThrows() {
-  console.log('Test: GitHub failure — throws');
-  const failing = { listIssues: async () => { throw new Error('Connection refused'); } };
+// ============================
+// Integration: composed pipeline (step functions)
+// ============================
 
-  try {
-    await projectStatus(
-      { request: 'status yaaf', project_alias: 'yaaf' },
-      { github: failing, clock: mockClock() }
-    );
-    assert.fail('Should have thrown');
-  } catch (err) {
-    assert.strictEqual(err.message, 'Connection refused');
-  }
+async function testPipelineHappyPath() {
+  console.log('Test: pipeline happy path — resolve → fetch → aggregate');
+  const github = mockGitHub([[
+    ghIssue(1, 'Fix auth flow', { labels: ['status:in-progress'] }),
+    ghIssue(2, 'Add tests', { labels: ['status:todo'] }),
+    ghIssue(3, 'Review API', { labels: ['status:in-review'] }),
+    ghIssue(4, 'Bug report'),
+  ]]);
+
+  // Step 1: resolve
+  const resolved = resolve('yaaf');
+  assert.ok(resolved.project);
+
+  // Step 2: fetch
+  const [owner, repo] = resolved.project.repo.split('/');
+  const issues = await fetchAllOpenIssues(github, owner, repo);
+  const fetchResult = { project: resolved.project, issues };
+
+  // Step 3: aggregate
+  const result = aggregate(fetchResult, new Date('2026-04-02T12:00:00Z'));
+
+  assert.strictEqual(result.type, 'Ready');
+  assert.strictEqual(result.project.key, 'yaaf');
+  assert.strictEqual(result.stats.total_open, 4);
+  assert.ok(result.brief.includes('Status: yaaf'));
 }
 
-async function testCaseInsensitiveAlias() {
-  console.log('Test: alias resolution is case-insensitive');
-  const result = await projectStatus(
-    { request: 'status YAAF', project_alias: 'YAAF' },
-    { github: mockGitHub([[]]), clock: mockClock() }
-  );
-  assert.strictEqual(result.type, 'Ready');
+async function testPipelineNeedInfo() {
+  console.log('Test: pipeline NeedInfo — unknown alias short-circuits');
+  const resolved = resolve('foobar');
+  assert.strictEqual(resolved.type, 'NeedInfo');
+  // In Lobster, NeedInfo flows through fetch and aggregate as pass-through
+}
+
+async function testPipelinePagination() {
+  console.log('Test: pipeline — pagination flows through');
+  const page1 = Array.from({ length: 100 }, (_, i) => ghIssue(i + 1, `Issue ${i + 1}`));
+  const page2 = [ghIssue(101, 'Issue 101')];
+  const github = mockGitHub([page1, page2]);
+
+  const resolved = resolve('yaaf');
+  const [owner, repo] = resolved.project.repo.split('/');
+  const issues = await fetchAllOpenIssues(github, owner, repo);
+  const result = aggregate({ project: resolved.project, issues }, new Date('2026-04-02T12:00:00Z'));
+
+  assert.strictEqual(result.stats.total_open, 101);
 }
 
 // Run all
 console.log('=== Project Status Tests ===');
 (async () => {
+  // Model: alias resolution
+  testResolveKnown();
+  testResolveCaseInsensitive();
+  testResolveUnknown();
+  testListKnown();
+
+  // Step: resolve
+  testResolveStepKnown();
+  testResolveStepUnknown();
+  testResolveStepNull();
+  testResolveStepCaseInsensitive();
+
+  // Step: fetch
+  await testFetchFiltersPRs();
+  await testFetchPaginates();
+  await testFetchEmpty();
+  await testFetchFailureThrows();
+
+  // Model: aggregation
   testAggregateBasic();
   testAggregateStaleDetection();
   testAggregateUnknownStatusLabel();
   testAggregateDraftBacklogLabels();
   testAggregateMultipleStatusLabels();
+
+  // Model: formatting
   testFormatBrief();
   testFormatBriefWithStale();
+  testTelegramBriefFormat();
 
-  await testHappyPath();
-  await testNeedInfoMissingAlias();
-  await testNeedInfoUnknownAlias();
-  await testFiltersPullRequests();
-  await testPagination();
-  await testEmptyRepo();
-  await testGitHubFailureThrows();
-  await testCaseInsensitiveAlias();
+  // Step: aggregate
+  testAggregateStepReady();
+  testAggregateStepEmpty();
+
+  // Integration: composed pipeline
+  await testPipelineHappyPath();
+  await testPipelineNeedInfo();
+  await testPipelinePagination();
 
   console.log('All project status tests passed.');
 })().catch((err) => {
