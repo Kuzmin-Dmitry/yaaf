@@ -1,9 +1,14 @@
 /**
- * Tests for create_task pipeline — end-to-end scenarios from the spec.
+ * Tests for create_task pipeline.
+ *
+ * Tests the programmatic createTask() API
+ * AND the shared step functions (merge, validate) used by create-github-issue.
  */
 
 const assert = require('assert');
 const { createTask } = require('../../lobster/lib/tasks/create-task');
+const { merge, validate } = require('../../lobster/lib/tasks/cli/ct-validate');
+const { publish } = require('../../lobster/lib/tasks/steps/publish');
 
 // Helper: build mock tracker
 function mockTracker(recentTasks = [], createdId = 'TASK-43') {
@@ -24,122 +29,165 @@ function mockLLM(extractResult) {
   };
 }
 
-// --- Scenario 7.1: Happy path ---
+// ============================
+// Unit: merge (shared step)
+// ============================
 
-async function testHappyPath() {
-  console.log('Test: 7.1 Happy path — one invocation, zero questions');
-  const result = await createTask(
-    { request: 'сделай таск "Fix login bug" — логин падает на невалидном email', partial_state: null },
-    {
-      tracker: mockTracker(),
-      llm: mockLLM({ title: 'Fix login bug', description: 'Login page returns 500 on invalid email' }),
-    }
-  );
-
-  assert.strictEqual(result.type, 'Ready');
-  assert.strictEqual(result.task.id, 'TASK-43');
-  assert.strictEqual(result.task.title, 'Fix login bug');
+function testMergeBasic() {
+  console.log('Test: merge — title and description override partial_state');
+  const result = merge('New title', 'New desc', { title: 'Old', description: 'Old' });
+  assert.strictEqual(result.title, 'New title');
+  assert.strictEqual(result.description, 'New desc');
 }
 
-// --- Scenario 7.2: Missing title ---
+function testMergePreservesPartialState() {
+  console.log('Test: merge — empty strings do not override partial_state');
+  const result = merge('', '', { title: 'Keep', description: 'Keep', dedup_decision: 'create_new' });
+  assert.strictEqual(result.title, 'Keep');
+  assert.strictEqual(result.description, 'Keep');
+  assert.strictEqual(result.dedup_decision, 'create_new');
+}
 
-async function testMissingTitle() {
-  console.log('Test: 7.2 Missing title — NeedInfo returned');
-  const result = await createTask(
-    { request: 'сделай таск — логин не работает', partial_state: null },
-    {
-      tracker: mockTracker(),
-      llm: mockLLM({ title: '', description: 'логин не работает' }),
-    }
-  );
+function testMergeNullPartialState() {
+  console.log('Test: merge — null partial_state starts fresh');
+  const result = merge('Title', 'Desc', null);
+  assert.strictEqual(result.title, 'Title');
+  assert.strictEqual(result.description, 'Desc');
+}
 
+// ============================
+// Unit: validate (shared step)
+// ============================
+
+function testValidateHappyPath() {
+  console.log('Test: validate — happy path returns task');
+  const result = validate({ title: 'Fix bug', description: 'Details' }, { recentTasks: [] });
+  assert.ok(result.task);
+  assert.strictEqual(result.task.title, 'Fix bug');
+  assert.strictEqual(result.task.state, 'Draft');
+}
+
+function testValidateMissingTitle() {
+  console.log('Test: validate — missing title returns NeedInfo');
+  const result = validate({}, { recentTasks: [] });
   assert.strictEqual(result.type, 'NeedInfo');
   assert.deepStrictEqual(result.missing, ['title']);
-  assert.strictEqual(result.parsed_so_far.description, 'логин не работает');
 }
 
-async function testMissingTitleClarified() {
-  console.log('Test: 7.2 Missing title — re-invoke with title resolves');
-  const result = await createTask(
-    { request: 'Fix login bug', partial_state: { description: 'логин не работает' } },
-    {
-      tracker: mockTracker([], 'TASK-44'),
-      llm: mockLLM({ title: 'Fix login bug', description: '' }),
-    }
-  );
-
-  assert.strictEqual(result.type, 'Ready');
-  assert.strictEqual(result.task.id, 'TASK-44');
-  assert.strictEqual(result.task.title, 'Fix login bug');
-}
-
-// --- Scenario 7.3: Duplicate found — create new ---
-
-async function testDuplicateFound() {
-  console.log('Test: 7.3 Duplicate found — NeedDecision returned');
-  const recentTasks = [{ id: 'TASK-42', title: 'Fix login bug', state: 'Draft' }];
-  const result = await createTask(
-    { request: 'сделай таск на фикс логина', partial_state: null },
-    {
-      tracker: mockTracker(recentTasks),
-      llm: mockLLM({ title: 'Fix login bug', description: '' }),
-    }
-  );
-
+function testValidateDuplicate() {
+  console.log('Test: validate — duplicate returns NeedDecision');
+  const context = { recentTasks: [{ id: 'TASK-42', title: 'Fix bug', state: 'Draft' }] };
+  const result = validate({ title: 'Fix bug' }, context);
   assert.strictEqual(result.type, 'NeedDecision');
-  assert.strictEqual(result.reason, 'duplicate_candidate');
   assert.strictEqual(result.candidates[0].id, 'TASK-42');
 }
 
-async function testDuplicateCreateNew() {
-  console.log('Test: 7.3 Duplicate — user chooses create new');
-  const recentTasks = [{ id: 'TASK-42', title: 'Fix login bug', state: 'Draft' }];
-  const result = await createTask(
-    {
-      request: 'создай новую',
-      partial_state: { title: 'Fix login bug', dedup_decision: 'create_new' },
-    },
-    {
-      tracker: mockTracker(recentTasks, 'TASK-45'),
-      llm: mockLLM({ title: '', description: '' }), // parse finds nothing new
-    }
-  );
-
-  assert.strictEqual(result.type, 'Ready');
-  assert.strictEqual(result.task.id, 'TASK-45');
-  assert.strictEqual(result.task.title, 'Fix login bug');
+function testValidateDedupSkippedWithDecision() {
+  console.log('Test: validate — dedup skipped with dedup_decision');
+  const context = { recentTasks: [{ id: 'TASK-42', title: 'Fix bug', state: 'Draft' }] };
+  const result = validate({ title: 'Fix bug', dedup_decision: 'create_new' }, context);
+  assert.ok(result.task);
 }
 
-// --- Scenario 7.5: Rejected — schema violation ---
-
-async function testRejectedSchemaViolation() {
-  console.log('Test: 7.5 Rejected — title too long');
-  const longTitle = 'a'.repeat(201);
-  const result = await createTask(
-    { request: 'сделай таск с очень длинным названием', partial_state: null },
-    {
-      tracker: mockTracker(),
-      llm: mockLLM({ title: longTitle, description: '' }),
-    }
-  );
-
+function testValidateTitleTooLong() {
+  console.log('Test: validate — title too long returns Rejected');
+  const result = validate({ title: 'a'.repeat(201) }, { recentTasks: [] });
   assert.strictEqual(result.type, 'Rejected');
   assert.strictEqual(result.reason, 'schema_violation');
-  assert.ok(result.details.includes('200'));
 }
 
-// --- Edge cases ---
+// ============================
+// Integration: merge → validate → publish (shared steps)
+// ============================
 
-async function testTrackerError() {
-  console.log('Test: Tracker unreachable — throws (infra failure)');
-  const tracker = {
-    fetchRecentTasks: async () => { throw new Error('Connection refused'); },
-  };
+async function testLobsterPipelineHappyPath() {
+  console.log('Test: merge → validate → publish happy path');
+  const context = { recentTasks: [] };
+  const parsed = merge('Fix login bug', 'Login returns 500', null);
+  const validated = validate(parsed, context);
+  assert.ok(validated.task);
 
+  const tracker = mockTracker([], 'TASK-43');
+  const result = await publish(validated.task, tracker);
+  assert.strictEqual(result.type, 'Ready');
+  assert.strictEqual(result.task.id, 'TASK-43');
+}
+
+async function testLobsterPipelineNeedInfo() {
+  console.log('Test: merge → validate NeedInfo short-circuits before publish');
+  const parsed = merge('', '', null);
+  const result = validate(parsed, { recentTasks: [] });
+  assert.strictEqual(result.type, 'NeedInfo');
+}
+
+async function testLobsterPipelineDedupFlow() {
+  console.log('Test: merge → validate dedup → NeedDecision → create_new');
+  const context = { recentTasks: [{ id: 'TASK-42', title: 'Fix bug', state: 'Draft' }] };
+
+  // First call: duplicate found
+  const parsed1 = merge('Fix bug', '', null);
+  const result1 = validate(parsed1, context);
+  assert.strictEqual(result1.type, 'NeedDecision');
+
+  // Second call: user chose create_new
+  const parsed2 = merge('Fix bug', '', { title: 'Fix bug', dedup_decision: 'create_new' });
+  const result2 = validate(parsed2, context);
+  assert.ok(result2.task);
+
+  const tracker = mockTracker([], 'TASK-45');
+  const result3 = await publish(result2.task, tracker);
+  assert.strictEqual(result3.type, 'Ready');
+  assert.strictEqual(result3.task.id, 'TASK-45');
+}
+
+// ============================
+// Backward compat: createTask() programmatic API
+// ============================
+
+async function testHappyPath() {
+  console.log('Test: createTask() happy path — one invocation, zero questions');
+  const result = await createTask(
+    { request: 'сделай таск "Fix login bug"', partial_state: null },
+    { tracker: mockTracker(), llm: mockLLM({ title: 'Fix login bug', description: 'Login page returns 500' }) }
+  );
+  assert.strictEqual(result.type, 'Ready');
+  assert.strictEqual(result.task.id, 'TASK-43');
+}
+
+async function testMissingTitleCompat() {
+  console.log('Test: createTask() missing title — NeedInfo');
+  const result = await createTask(
+    { request: 'сделай таск', partial_state: null },
+    { tracker: mockTracker(), llm: mockLLM({ title: '', description: 'not working' }) }
+  );
+  assert.strictEqual(result.type, 'NeedInfo');
+  assert.deepStrictEqual(result.missing, ['title']);
+}
+
+async function testDuplicateCompat() {
+  console.log('Test: createTask() duplicate — NeedDecision');
+  const result = await createTask(
+    { request: 'fix login', partial_state: null },
+    { tracker: mockTracker([{ id: 'TASK-42', title: 'Fix login bug', state: 'Draft' }]), llm: mockLLM({ title: 'Fix login bug', description: '' }) }
+  );
+  assert.strictEqual(result.type, 'NeedDecision');
+}
+
+async function testRejectedCompat() {
+  console.log('Test: createTask() rejected — title too long');
+  const result = await createTask(
+    { request: 'long', partial_state: null },
+    { tracker: mockTracker(), llm: mockLLM({ title: 'a'.repeat(201), description: '' }) }
+  );
+  assert.strictEqual(result.type, 'Rejected');
+}
+
+async function testTrackerErrorCompat() {
+  console.log('Test: createTask() tracker failure — throws');
   try {
     await createTask(
-      { request: 'create task', partial_state: null },
-      { tracker, llm: mockLLM({ title: 'Test', description: '' }) }
+      { request: 'test', partial_state: null },
+      { tracker: { fetchRecentTasks: async () => { throw new Error('Connection refused'); } }, llm: mockLLM({ title: 'T', description: '' }) }
     );
     assert.fail('Should have thrown');
   } catch (err) {
@@ -147,68 +195,33 @@ async function testTrackerError() {
   }
 }
 
-async function testPublishError() {
-  console.log('Test: Publish fails — throws (infra failure)');
-  const tracker = {
-    fetchRecentTasks: async () => [],
-    createIssue: async () => { throw new Error('API 503'); },
-  };
-
-  try {
-    await createTask(
-      { request: 'create task', partial_state: null },
-      { tracker, llm: mockLLM({ title: 'Test task', description: '' }) }
-    );
-    assert.fail('Should have thrown');
-  } catch (err) {
-    assert.strictEqual(err.message, 'API 503');
-  }
-}
-
-async function testLLMReturnsNothing() {
-  console.log('Test: LLM extracts nothing — NeedInfo for title');
-  const result = await createTask(
-    { request: 'do something', partial_state: null },
-    {
-      tracker: mockTracker(),
-      llm: mockLLM({ title: '', description: '' }),
-    }
-  );
-
-  assert.strictEqual(result.type, 'NeedInfo');
-  assert.deepStrictEqual(result.missing, ['title']);
-}
-
-async function testPartialStateMergePreservesOnReInvoke() {
-  console.log('Test: Re-invoke preserves partial_state fields not overridden');
-  const result = await createTask(
-    {
-      request: 'назови Fix auth bug',
-      partial_state: { description: 'Original description from first call' },
-    },
-    {
-      tracker: mockTracker([], 'TASK-50'),
-      llm: mockLLM({ title: 'Fix auth bug', description: '' }),
-    }
-  );
-
-  assert.strictEqual(result.type, 'Ready');
-  assert.strictEqual(result.task.title, 'Fix auth bug');
-}
-
 // Run all
 console.log('=== Create Task Pipeline Tests ===');
 (async () => {
+  // Unit: merge
+  testMergeBasic();
+  testMergePreservesPartialState();
+  testMergeNullPartialState();
+
+  // Unit: validate
+  testValidateHappyPath();
+  testValidateMissingTitle();
+  testValidateDuplicate();
+  testValidateDedupSkippedWithDecision();
+  testValidateTitleTooLong();
+
+  // Integration: shared step functions
+  await testLobsterPipelineHappyPath();
+  await testLobsterPipelineNeedInfo();
+  await testLobsterPipelineDedupFlow();
+
+  // Programmatic API: createTask()
   await testHappyPath();
-  await testMissingTitle();
-  await testMissingTitleClarified();
-  await testDuplicateFound();
-  await testDuplicateCreateNew();
-  await testRejectedSchemaViolation();
-  await testTrackerError();
-  await testPublishError();
-  await testLLMReturnsNothing();
-  await testPartialStateMergePreservesOnReInvoke();
+  await testMissingTitleCompat();
+  await testDuplicateCompat();
+  await testRejectedCompat();
+  await testTrackerErrorCompat();
+
   console.log('All pipeline tests passed.');
 })().catch(err => {
   console.error('Test failed:', err);

@@ -52,6 +52,11 @@ const REVIEW_LIMITS = {
 const REVIEW_LABEL = 'reviewed:architecture';
 
 /**
+ * Valid task types for create-github-issue pipeline.
+ */
+const TASK_TYPES = ['bug', 'feature', 'chore'];
+
+/**
  * Validate a TaskObject against schema.
  * @param {Object} task - { title, description, state }
  * @returns {{ valid: boolean, reason?: string }}
@@ -78,5 +83,6 @@ module.exports = {
   REVIEWABLE_STATES,
   REVIEW_LIMITS,
   REVIEW_LABEL,
+  TASK_TYPES,
   validateTaskObject,
 };
