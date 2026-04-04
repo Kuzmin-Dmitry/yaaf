@@ -1,29 +1,25 @@
 # Workflow: Approve Task
 
-`approve_task` transitions a GitHub issue through the approval pipeline using labels to track state.
+Воркфлоу `approve-task` продвигает задачу по конвейеру утверждения, переключая статусные лейблы на GitHub Issue. Пайплайн полностью детерминирован: три шага без обращения к LLM.
 
-## State Transitions
+Утверждение — это двухступенчатый процесс. Первое утверждение переводит задачу из черновика в бэклог. Второе — из бэклога в готовность к работе. Других переходов не существует.
 
-```mermaid
-stateDiagram-v2
-    Draft --> Backlog : approve
-    Backlog --> Ready : approve
-```
+## Машина состояний
 
-| Current State | Approval Result |
-|---|---|
-| `Draft` | → `Backlog` |
-| `Backlog` | → `Ready` |
-| `Ready` | Rejected (no valid transition) |
-| `InProgress` | Rejected |
-| `InReview` | Rejected |
-| `Done` | Rejected |
+| Текущий статус | После утверждения | Результат |
+|---|---|---|
+| `Draft` | `Backlog` | Ready |
+| `Backlog` | `Ready` | Ready |
+| `Ready` | — | Rejected (переход невозможен) |
+| `InProgress` | — | Rejected |
+| `InReview` | — | Rejected |
+| `Done` | — | Rejected |
 
-## GitHub Labels
+## GitHub-лейблы
 
-State is tracked via GitHub issue labels. Each state maps to a label:
+Состояние задачи отслеживается через лейблы на GitHub Issue:
 
-| Label | State |
+| Лейбл | Статус |
 |---|---|
 | `status:draft` | Draft |
 | `status:backlog` | Backlog |
@@ -32,56 +28,82 @@ State is tracked via GitHub issue labels. Each state maps to a label:
 | `status:in-review` | InReview |
 | `status:done` | Done |
 
-When `create_task` publishes an issue, it attaches the `status:draft` label automatically.
+При публикации задачи через `create-github-issue` автоматически присваивается лейбл `status:draft`. Каждое утверждение снимает старый лейбл и ставит новый.
 
-When `approve_task` runs, it:
-1. Reads the current state from labels
-2. Validates the transition is allowed
-3. Removes the old status label
-4. Adds the new status label
+## Шаги пайплайна
 
-## Happy Path
+### 1. Fetch Issue — Загрузка задачи
+
+Получает текущее состояние задачи из GitHub по номеру Issue. Считывает лейблы и определяет текущий статус по паттерну `status:*`. Если Issue не найден — ошибка инфраструктуры (исключение).
+
+### 2. Validate Transition — Проверка перехода
+
+Проверяет, что текущий статус задачи допускает утверждение. Допустимые переходы: Draft → Backlog, Backlog → Ready. Если задача в любом другом статусе — ранний выход с `Rejected` и описанием причины.
+
+### 3. Approve — Выполнение перехода
+
+Удаляет старый статусный лейбл и добавляет новый через GitHub API. Возвращает `Ready` с информацией о переходе: идентификатор, заголовок, предыдущий и новый статус.
+
+## Вход
+
+| Поле | Тип | Описание |
+|---|---|---|
+| `issue_id` | string | Номер GitHub Issue для утверждения |
+
+## Результаты
+
+| Результат | Когда возвращается |
+|---|---|
+| `Ready` | Переход выполнен успешно. Содержит: id, title, previousState, newState |
+| `Rejected` | Отсутствует issue_id или статус не допускает утверждение. Содержит: reason, details |
+
+## Инварианты
+
+1. Допустимы только два перехода: Draft → Backlog и Backlog → Ready.
+2. Ошибки инфраструктуры (API) выбрасываются как исключения, не оборачиваются в бизнес-результаты.
+3. Состояние определяется по лейблам `status:*`; при их отсутствии используется статус open/closed из GitHub.
+4. Старый лейбл удаляется до добавления нового — промежуточного состояния с двумя статусными лейблами быть не должно.
+5. Многоходового взаимодействия нет: один вызов — один результат.
+
+## Основные файлы
+
+| Путь | Назначение |
+|---|---|
+| `lobster/workflows/approve-task.lobster` | Декларативный пайплайн (source of truth) |
+| `lobster/lib/tasks/approve-task.js` | Оркестрация пайплайна |
+| `lobster/lib/tasks/model.js` | Состояния, лейблы и правила переходов |
+| `lobster/lib/github/tracker-adapter.js` | Операции с лейблами на GitHub |
+| `test/tasks/approve-task.test.js` | Покрытие сценариев |
+
+## Архитектурная диаграмма
 
 ```mermaid
-sequenceDiagram
-    actor User
-    participant Pipeline as approve_task
-    participant Tracker as GitHub tracker
-    participant GitHub as GitHub API
+flowchart TD
+    Start(["Вход: issue_id"])
 
-    User->>Pipeline: approveTask({ issue_id: "42" })
-    Pipeline->>Tracker: fetchIssue("42")
-    Tracker->>GitHub: GET /repos/:owner/:repo/issues/42
-    GitHub-->>Tracker: issue with labels
-    Tracker-->>Pipeline: { id, title, state: "Draft", labels }
-    Pipeline->>Pipeline: validate transition (Draft → Backlog)
-    Pipeline->>Tracker: approveIssue("42")
-    Tracker->>GitHub: DELETE label "status:draft"
-    Tracker->>GitHub: POST label "status:backlog"
-    Tracker-->>Pipeline: { previousState: "Draft", newState: "Backlog" }
-    Pipeline-->>User: Ready { task: { id, title, previousState, newState } }
+    Start --> Fetch["① Fetch Issue\nЗагрузка задачи и лейблов из GitHub"]
+
+    Fetch -->|Issue не найден| InfraError["⚠ Infrastructure Error"]
+    Fetch -->|OK| Validate["② Validate Transition\nПроверка допустимости перехода"]
+
+    Validate -->|Draft| TransDraft["Draft → Backlog"]
+    Validate -->|Backlog| TransBacklog["Backlog → Ready"]
+    Validate -->|Ready / InProgress / InReview / Done| RejectedState["Rejected\n(invalid_transition)"]
+
+    TransDraft --> Approve["③ Approve\nУдалить status:draft\nДобавить status:backlog"]
+    TransBacklog --> Approve2["③ Approve\nУдалить status:backlog\nДобавить status:ready"]
+
+    Approve --> Ready["Ready\n(id, title, Draft → Backlog)"]
+    Approve2 --> Ready2["Ready\n(id, title, Backlog → Ready)"]
+
+    style RejectedState fill:#f8d7da,stroke:#dc3545
+    style Ready fill:#d4edda,stroke:#28a745
+    style Ready2 fill:#d4edda,stroke:#28a745
+    style InfraError fill:#f8d7da,stroke:#dc3545
 ```
 
-## Typed Results
-
-| Result | Meaning |
-|---|---|
-| `Ready` | Transition completed successfully |
-| `Rejected` | Missing issue_id or invalid transition |
-
-## Invariants
-
-1. Only `Draft → Backlog` and `Backlog → Ready` transitions are valid.
-2. Infrastructure failures (API errors) throw — they are not wrapped as business results.
-3. State is determined from `status:*` labels; falls back to GitHub open/closed state.
-4. Old status label is removed before adding the new one.
-
-## Primary Files
-
-| Path | Why read it |
-|---|---|
-| `lobster/lib/tasks/approve-task.js` | Pipeline orchestration |
-| `lobster/lib/tasks/model.js` | State labels and transition rules |
-| `lobster/lib/github/tracker-adapter.js` | GitHub label operations |
-| `test/tasks/approve-task.test.js` | Scenario coverage |
-| `test/github/tracker-adapter.test.js` | Adapter-level approval tests |
+```mermaid
+stateDiagram-v2
+    Draft --> Backlog : approve
+    Backlog --> Ready : approve
+```

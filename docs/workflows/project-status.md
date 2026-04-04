@@ -1,203 +1,155 @@
 # Workflow: Project Status
 
-`project_status` is a read-only Lobster workflow for requests such as `дай статус по проекту yaaf`.
+Воркфлоу `project-status` — read-only пайплайн для запросов вида «дай статус по проекту yaaf». Разрешает алиас проекта, загружает все открытые Issues из GitHub, агрегирует статистику и формирует краткую сводку для PM.
 
-It resolves a project alias, reads all open GitHub issues for the target repository, aggregates a concise project snapshot, and returns a PM-ready brief for delivery back to Telegram.
+Пайплайн полностью детерминирован: три шага, без обращения к LLM.
 
-Status: **Phase 1 implemented and tested.** PM routing integration planned as Phase 2.
+## Шаги пайплайна
 
-## Scope
+### 1. Resolve — Разрешение алиаса проекта
 
-This plan assumes the following product decisions:
+Принимает текстовый алиас и ищет соответствие в реестре проектов. Нормализация: нижний регистр, обрезка пробелов. Сопоставление по полям `key` и `aliases`.
 
-1. Status is computed from all open GitHub issues, not only Symphony-managed issues.
-2. The workflow must support multi-project aliases from the first version.
-3. The workflow returns typed results to PM; PM or OpenClaw remains responsible for Telegram delivery.
-4. The workflow is fully deterministic and does not depend on an LLM.
+Если алиас не найден или не указан — ранний выход с `NeedInfo` и списком известных проектов.
 
-## User Flow
+Формат записи реестра:
 
-```mermaid
-sequenceDiagram
-    actor User
-    participant TG as Telegram
-    participant PM as agent.pm
-    participant Workflow as project_status
-    participant Aliases as Alias Registry
-    participant GitHub as GitHub REST API
+| Поле | Описание |
+|---|---|
+| `key` | Каноническое имя проекта |
+| `repo` | Полный идентификатор `owner/repo` |
+| `aliases` | Массив допустимых алиасов |
+| `stale_after_days` | Порог устаревания в днях (по умолчанию 7) |
 
-    User->>TG: "дай статус по проекту yaaf"
-    TG->>PM: raw user message
-    PM->>Workflow: projectStatus({ request, project_alias: "yaaf" }, deps)
-    Workflow->>Aliases: resolve alias
-    Aliases-->>Workflow: Kuzmin-Dmitry/yaaf
-    Workflow->>GitHub: list open issues (paginate)
-    GitHub-->>Workflow: all open issue pages
-    Workflow->>Workflow: aggregate counts, highlights, risks
-    Workflow-->>PM: Ready { brief, stats, highlights, risks }
-    PM-->>TG: short status message
-    TG-->>User: delivered status
+### 2. Fetch — Загрузка открытых задач
+
+Запрашивает все открытые Issues из целевого репозитория через GitHub REST API. Пагинация выполняется батчами по 100 записей до исчерпания. Pull Request'ы исключаются из результатов.
+
+Для каждого Issue сохраняются: номер, заголовок, URL, лейблы, дата последнего обновления.
+
+Если GitHub API недоступен — ошибка инфраструктуры (исключение).
+
+### 3. Aggregate — Агрегация и формирование сводки
+
+Классифицирует все открытые задачи по статусным бакетам и формирует PM-ready сводку.
+
+**Классификация по статусу:**
+
+- Если у Issue есть лейбл `status:*` — статус определяется по нему.
+- Если несколько статусных лейблов — берётся первый по алфавиту, записывается предупреждение.
+- Если статусного лейбла нет — задача классифицируется как `unlabeled`.
+
+**Статусные бакеты:** `draft`, `backlog`, `ready`, `todo`, `in-progress`, `in-review`, `rework`, `done`, `unlabeled`.
+
+**Обнаружение устаревших задач:**
+
+- Задача считается устаревшей, если с момента последнего обновления прошло больше `stale_after_days`.
+- Текущее время инжектируется через зависимость `clock` для детерминированного тестирования.
+
+**Формат сводки:** `"Status yaaf: 12 open issues. In progress: 3, in review: 2, todo: 5, unlabeled: 2. Risks: 1 stale item."`
+
+**Формат Telegram-сводки** (HTML parse_mode, отправляется с `parse_mode: 'HTML'`):
+
+```
+📊 <b>Status: yaaf</b> — 12 open
+
+📝 draft: 1
+📋 backlog: 2
+🔧 in-progress: 3
+👀 in-review: 2
+📌 todo: 4
+
+⚠️ Stale: 1
 ```
 
-## Pipeline Shape
+Каждый статус выводится на отдельной строке с эмодзи-префиксом. Нулевые статусы пропускаются.
+
+## Вход
+
+| Поле | Тип | Описание |
+|---|---|---|
+| `project_alias` | string / null | Алиас проекта из пользовательского сообщения |
+
+## Зависимости
+
+| Компонент | Контракт |
+|---|---|
+| `projects` | `resolve(alias)` — поиск проекта; `list()` — список всех проектов |
+| `github` | `listOpenIssues(owner, repo)` — пагинированная загрузка Issues |
+| `clock` | `now()` — текущее время (для тестов) |
+
+## Результаты
+
+| Результат | Когда возвращается |
+|---|---|
+| `Ready` | Сводка успешно сформирована. Содержит: project, brief, stats (total_open, by_status, stale_count, warnings), highlights, risks, generated_at |
+| `NeedInfo` | Алиас не найден. Содержит: missing, known_projects |
+
+## Ready payload
+
+| Поле | Описание |
+|---|---|
+| `project` | Ключ и репозиторий проекта |
+| `brief` | Текстовая сводка (plain text) |
+| `telegram_brief` | Сводка для Telegram (HTML parse_mode) |
+| `stats.total_open` | Общее число открытых Issues |
+| `stats.by_status` | Распределение по статусным бакетам |
+| `stats.stale_count` | Количество устаревших задач |
+| `stats.warnings` | Предупреждения (например, множественные статусные лейблы) |
+| `highlights` | Ключевые задачи с причиной включения |
+| `risks` | Обнаруженные риски (устаревание, перегрузка) |
+| `generated_at` | Метка времени генерации |
+
+## Инварианты
+
+1. Пайплайн полностью детерминирован, LLM не используется.
+2. Статус считается из всех открытых Issues, не только из управляемых через Symphony.
+3. Ошибки инфраструктуры (API) выбрасываются как исключения, не оборачиваются в бизнес-результаты.
+4. Мутации данных не производятся: ни создание, ни обновление, ни удаление Issues.
+5. PM обрабатывает доставку: пайплайн не отправляет сообщения в Telegram напрямую.
+
+## Основные файлы
+
+| Путь | Назначение |
+|---|---|
+| `lobster/workflows/project-status.lobster` | Декларативный пайплайн (source of truth) |
+| `lobster/lib/tasks/project-status.js` | Оркестрация пайплайна |
+| `lobster/lib/tasks/cli/ps-resolve.js` | Разрешение алиаса |
+| `lobster/lib/tasks/cli/ps-fetch.js` | Загрузка Issues |
+| `lobster/lib/tasks/cli/ps-aggregate.js` | Агрегация статистики |
+| `lobster/lib/tasks/model.js` | Статусы и лейблы |
+| `test/tasks/project-status.test.js` | Покрытие сценариев |
+
+## Архитектурная диаграмма
 
 ```mermaid
 flowchart TD
-    Start["projectStatus(input, deps)"] --> Resolve["Resolve project alias"]
-    Resolve -->|unknown or missing| NeedInfo["NeedInfo"]
-    Resolve -->|resolved| Fetch["Fetch all open issues"]
-    Fetch --> Aggregate["Aggregate status buckets and risks"]
-    Aggregate --> Format["Format PM brief"]
-    Format --> Ready["Ready"]
-    Fetch -->|GitHub failure| Error["throw infrastructure error"]
+    Start(["Вход: project_alias"])
+
+    Start --> Resolve["① Resolve\nРазрешение алиаса проекта"]
+
+    Resolve -->|алиас не найден| NeedInfo["NeedInfo\n(missing: project_alias,\nknown_projects)"]
+    Resolve -->|OK| Fetch["② Fetch\nЗагрузка всех открытых Issues\n(батчи по 100, без PR)"]
+
+    Fetch -->|GitHub недоступен| InfraError["⚠ Infrastructure Error"]
+    Fetch -->|OK| Aggregate["③ Aggregate\nКлассификация по status:*\nОбнаружение stale\nФормирование brief"]
+
+    Aggregate --> Ready["Ready\n(brief, stats, highlights, risks)"]
+
+    style NeedInfo fill:#fff3cd,stroke:#ffc107
+    style Ready fill:#d4edda,stroke:#28a745
+    style InfraError fill:#f8d7da,stroke:#dc3545
 ```
 
-## Goals
-
-1. Answer project status requests from Telegram with a short, useful summary.
-2. Keep orchestration boundaries intact: PM handles the conversation, the workflow handles deterministic execution.
-3. Support multiple repositories through alias resolution instead of hardcoding `yaaf`.
-4. Produce a result shape that is easy to test and easy for PM to render.
-
-## Non-Goals
-
-1. No direct Telegram sender inside the workflow.
-2. No issue creation, mutation, or synchronization.
-3. No LLM summarization or semantic clustering.
-4. No dependency on Symphony labels for total issue counting.
-
-## Source of Truth
-
-The total active workload is the set of all open GitHub issues in the resolved repository, excluding pull requests.
-
-Status buckets are secondary classification:
-
-1. If an issue has a recognized `status:*` label, classify by that label.
-2. If an issue has multiple `status:*` labels, pick the first alphabetically and record a warning.
-3. If an issue has no recognized status label, classify it as `unlabeled`.
-
-This keeps coverage complete while still reusing the existing label model where available.
-
-## Proposed Contract
-
-### Input
-
-```js
-{
-  request: string,
-  project_alias: string | null
-}
+```mermaid
+flowchart LR
+    subgraph Классификация Issues
+        Issue["GitHub Issue"] --> HasLabel{Есть status:* ?}
+        HasLabel -->|да, один| Bucket["Бакет по лейблу"]
+        HasLabel -->|да, несколько| First["Первый по алфавиту\n+ warning"]
+        HasLabel -->|нет| Unlabeled["unlabeled"]
+    end
 ```
-
-`project_alias` is resolved from the user message by PM routing logic when possible. If PM cannot determine it, the workflow may still receive `null` and return `NeedInfo`.
-
-### Dependencies
-
-```js
-{
-  projects: {
-    resolve(alias): { key, repo, aliases, stale_after_days } | null,
-    list(): Array<{ key, repo, aliases }>
-  },
-  github: {
-    listOpenIssues(owner, repo, options?): Promise<Issue[]>
-  },
-  clock: {
-    now(): Date
-  }
-}
-```
-
-`clock` keeps stale-item logic deterministic in tests.
-
-### Results
-
-| Result | Meaning |
-|---|---|
-| `Ready` | Status snapshot produced successfully |
-| `NeedInfo` | Project alias is missing or unknown |
-| `Rejected` | Request is structurally invalid before GitHub access |
-
-Infrastructure failures must throw, matching current task workflow conventions.
-
-### `Ready` payload
-
-```js
-{
-  type: 'Ready',
-  project: {
-    key: 'yaaf',
-    repo: 'Kuzmin-Dmitry/yaaf'
-  },
-  brief: 'Status yaaf: 12 open issues. In progress: 3, in review: 2, todo: 5, unlabeled: 2. Risks: 1 stale item.',
-  stats: {
-    total_open: 12,
-    by_status: {
-      todo: 5,
-      'in-progress': 3,
-      'in-review': 2,
-      rework: 0,
-      unlabeled: 2
-    },
-    stale_count: 1,
-    warnings: []
-  },
-  highlights: [
-    { number, title, url, status, updated_at, reason }
-  ],
-  risks: [
-    { code, message, count }
-  ],
-  generated_at: '2026-04-02T12:00:00.000Z'
-}
-```
-
-### `NeedInfo` payload
-
-```js
-{
-  type: 'NeedInfo',
-  missing: ['project_alias'],
-  known_projects: [
-    { key: 'yaaf', repo: 'Kuzmin-Dmitry/yaaf', aliases: ['yaaf'] }
-  ]
-}
-```
-
-## Alias Strategy
-
-The first version should include a dedicated alias registry instead of hardcoded repo names in PM.
-
-### Registry shape
-
-```js
-[
-  {
-    key: 'yaaf',
-    repo: 'Kuzmin-Dmitry/yaaf',
-    aliases: ['yaaf'],
-    stale_after_days: 7
-  }
-]
-```
-
-### Resolution rules
-
-1. Normalize alias input to lowercase and trim whitespace.
-2. Match against `key` and `aliases`.
-3. Return one canonical project descriptor.
-4. If nothing matches, return `NeedInfo` with available project keys.
-5. Do not let PM own repository mappings directly.
-
-## Fetch Strategy
-
-The workflow should use GitHub REST issue listing because the requirement is coverage of all open issues.
-
-### Implementation notes
-
-1. Paginate until exhaustion; the current low-level client only exposes a single-page `listIssues()` helper.
-2. Filter out pull requests from the `/issues` response.
-3. Preserve labels, assignees, `created_at`, `updated_at`, `html_url`, and issue number for downstream aggregation.
 4. Keep this behavior in a focused adapter instead of expanding the `create_task` tracker contract.
 
 ## Aggregation Rules
@@ -253,7 +205,6 @@ Changes to existing modules:
 |---|---|
 | `lobster/lib/github/client.js` | Added `page` parameter to `listIssues()` (backward compatible) |
 | `lobster/lib/tasks/index.js` | Exports `projectStatus` |
-| `lobster/skills/tasks.md` | Added project status intent routing |
 
 Tests: `test/tasks/project-status.test.js` — aggregation, formatting, E2E pipeline (14 tests).
 

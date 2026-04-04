@@ -23,11 +23,11 @@ Primary business logic for creating, reviewing, and publishing issues.
 
 | File | Role |
 |---|---|
-| `create-task.js` | Orchestrates the six-step `create_task` pipeline |
+| `create-task.js` | Legacy programmatic API for `create_task` (backward compat and tests) |
 | `approve-task.js` | Orchestrates the `approve_task` pipeline (Draft→Backlog→Ready via labels) |
 | `review-task.js` | Orchestrates the six-step `review_task` pipeline (fetch → analyze → rewrite → approve → update) |
 | `publish-task.js` | Orchestrates the `publish_task` pipeline |
-| `project-status.js` | Orchestrates the `project_status` pipeline |
+| `project-status.js` | Re-exports model and CLI step functions for programmatic use |
 | `model.js` | Shared task states, result types, state labels, approval transitions, review limits, and validation helpers |
 | `publish-task-model.js` | Validation and parsing rules for `publish_task` params |
 | `project-status-model.js` | Status aggregation and brief formatting |
@@ -66,11 +66,10 @@ In-memory aggregation of request metrics.
 
 | Path | Purpose |
 |---|---|
-| `lobster/workflows/create-task.lobster` | YAML-like definition of the `create_task` pipeline |
+| `lobster/workflows/create-github-issue.lobster` | Declarative pipeline for `create_task` (source of truth) |
 | `lobster/workflows/approve-task.lobster` | YAML-like definition of the `approve_task` pipeline |
 | `lobster/workflows/review-task.lobster` | YAML-like definition of the `review_task` pipeline |
 | `lobster/workflows/project-status.lobster` | YAML-like definition of the `project_status` pipeline |
-| `lobster/skills/tasks.md` | Routing rules for task-related intents |
 
 ## Test Layout
 
@@ -79,7 +78,6 @@ In-memory aggregation of request metrics.
 | `test/tasks/` | `create_task`, `approve_task`, `review_task`, `publish_task`, `project_status`, and model-level behavior |
 | `test/github/` | GitHub tracker adapter and Symphony adapter behavior |
 | `test/usage/` | Sliding window aggregation behavior |
-| `test/research/` | Documentation assertions for ADR-backed material |
 
 ## Where to Start by Goal
 

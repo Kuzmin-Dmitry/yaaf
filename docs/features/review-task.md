@@ -378,7 +378,7 @@ stateDiagram-v2
 | `lobster/lib/github/tracker-adapter.js` | Modify | Add `updateIssue()`, extend `fetchIssue()` with body |
 | `lobster/lib/github/client.js` | Modify | Add `updateIssue()` |
 | `lobster/lib/tasks/model.js` | Modify | Add review-specific constants |
-| `lobster/skills/tasks.md` | Modify | Add "review task" intent |
+| `openclaw/Yolka/AGENTS.md` | Modify | Add "review task" intent to routing table |
 | `openclaw/openclaw.json` | Modify | Register Librarian agent |
 | `test/tasks/review-task.test.js` | Create | Pipeline tests (mocks agentRunner) |
 
@@ -392,7 +392,7 @@ graph LR
         TA[tracker-adapter.js]
         CL[client.js]
         MO[model.js]
-        SK[tasks.md]
+        YA[Yolka/AGENTS.md]
     end
 
     subgraph "New modules"

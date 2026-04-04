@@ -26,4 +26,3 @@ flowchart TD
 ## Practical Caveats
 
 1. Aggregation is intentionally zero-persistence and resets on restart.
-2. Backed by ADR-002 (in-memory circular buffer design).

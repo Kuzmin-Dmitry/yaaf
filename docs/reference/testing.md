@@ -13,7 +13,6 @@ npm test
 | `test/tasks/` | Task model, task pipeline steps, `create_task`, `approve_task`, `review_task`, `publish_task`, `project_status` |
 | `test/github/` | GitHub tracker adapter (including label-based approval), Symphony adapter |
 | `test/usage/` | Sliding-window aggregation |
-| `test/research/` | ADR/document existence and structure checks |
 
 ## What Is Well Covered
 

@@ -372,7 +372,7 @@ stateDiagram-v2
 | `lobster/lib/github/tracker-adapter.js` | Модифицировать | Добавить `updateIssue()`, расширить `fetchIssue()` с body |
 | `lobster/lib/github/client.js` | Модифицировать | Добавить `getTree()`, `getFileContent()`, `updateIssue()` |
 | `lobster/lib/tasks/model.js` | Модифицировать | Добавить review-specific result schemas |
-| `lobster/skills/tasks.md` | Модифицировать | Добавить "review task" intent |
+| `openclaw/Yolka/AGENTS.md` | Модифицировать | Добавить "review task" intent в таблицу маршрутизации |
 | `test/tasks/review-task.test.js` | Создать | Pipeline тесты |
 | `test/github/code-context.test.js` | Создать | Code context fetcher тесты |
 
@@ -386,7 +386,7 @@ graph LR
         TA[tracker-adapter.js]
         CL[client.js]
         MO[model.js]
-        SK[tasks.md]
+        YA[Yolka/AGENTS.md]
     end
 
     subgraph "Новые модули"

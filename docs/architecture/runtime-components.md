@@ -88,7 +88,7 @@ Used by `review-task` step 2 (load-code-context) to invoke the Librarian agent f
 |---|---|
 | `aggregator.js` | 60-minute sliding window and current-day aggregate |
 
-Usage aggregation is a reusable primitive backed by ADR-002. Zero-persistence, resets on restart.
+Usage aggregation is a reusable primitive. Zero-persistence, resets on restart.
 
 ## Dependency Shape
 

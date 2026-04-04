@@ -27,11 +27,11 @@ flowchart TB
 
 | Layer | Primary responsibility | Key files |
 |---|---|---|
-| Interaction layer | Accept user messages and route them into task workflows | OpenClaw runtime, `lobster/skills/tasks.md` |
+| Interaction layer | Accept user messages and route them into task workflows | OpenClaw runtime, `openclaw/Yolka/AGENTS.md` |
 | Workflow layer | Run deterministic pipelines with typed exits | `lobster/lib/tasks/*`, `lobster/workflows/*.lobster` |
 | Integration layer | Talk to GitHub and adapt issue models | `lobster/lib/github/*` |
-| Configuration layer | Resolve project aliases and per-project settings | `lobster/lib/projects/*` |
-| Observability layer | Format, batch, and aggregate usage signals | `lobster/lib/telemetry/*`, `lobster/lib/usage/*` |
+| Configuration layer | Resolve project aliases and per-project settings | `lobster/lib/tasks/project-status-model.js` |
+| Observability layer | Aggregate usage signals | `lobster/lib/usage/*` |
 
 ## External Dependencies
 
