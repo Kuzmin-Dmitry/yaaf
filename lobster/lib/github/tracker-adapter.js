@@ -51,6 +51,13 @@ function resolveToken(token, agentDir) {
 }
 
 /**
+ * Inverted STATE_LABELS: label → state. Computed once at module load.
+ */
+const LABEL_TO_STATE = Object.fromEntries(
+  Object.entries(STATE_LABELS).map(([state, label]) => [label, state])
+);
+
+/**
  * Map GitHub issue to internal task state using labels first, then fallback.
  * GitHub has: open, closed
  * Labels: status:draft, status:backlog, status:ready, etc.
@@ -59,12 +66,9 @@ function resolveToken(token, agentDir) {
 function mapIssueState(ghState, labels) {
   if (labels && labels.length > 0) {
     const labelNames = labels.map((l) => (typeof l === 'string' ? l : l.name));
-    const labelToState = Object.fromEntries(
-      Object.entries(STATE_LABELS).map(([state, label]) => [label, state])
-    );
     for (const name of labelNames) {
-      if (labelToState[name]) {
-        return labelToState[name];
+      if (LABEL_TO_STATE[name]) {
+        return LABEL_TO_STATE[name];
       }
     }
   }
@@ -146,16 +150,29 @@ function createGitHubTracker({ owner, repo, token, agentDir, github }) {
 
     /**
      * Approve an issue: transition Draft→Backlog or Backlog→Ready via labels.
+     * Caller (approve-task) must validate transition before calling.
      * @param {string} issueId - issue number
-     * @param {Object} [knownIssue] - pre-fetched issue from pipeline (avoids extra API call)
+     * @param {Object} [knownIssue] - pre-fetched normalized issue from pipeline (avoids extra API call)
      * @returns {Promise<{ id: string, title: string, previousState: string, newState: string }>}
      */
     async approveIssue(issueId, knownIssue) {
-      const issue = knownIssue || await client.getIssue(owner, repo, issueId);
-      const labels = knownIssue ? issue.labels : (issue.labels || []).map((l) => l.name);
-      const currentState = knownIssue ? issue.state : mapIssueState(issue.state, issue.labels);
-      const nextState = APPROVAL_TRANSITIONS[currentState];
+      // Normalize: if knownIssue already has string labels and mapped state, use as-is.
+      // Otherwise fetch from API and normalize.
+      let id, title, currentState, labelNames;
+      if (knownIssue) {
+        id = knownIssue.id;
+        title = knownIssue.title;
+        currentState = knownIssue.state;
+        labelNames = knownIssue.labels;
+      } else {
+        const raw = await client.getIssue(owner, repo, issueId);
+        id = String(raw.number);
+        title = raw.title;
+        labelNames = (raw.labels || []).map((l) => l.name);
+        currentState = mapIssueState(raw.state, raw.labels);
+      }
 
+      const nextState = APPROVAL_TRANSITIONS[currentState];
       if (!nextState) {
         throw new Error(`Cannot approve issue in state "${currentState}". Approval is only valid for: ${Object.keys(APPROVAL_TRANSITIONS).join(', ')}`);
       }
@@ -163,21 +180,12 @@ function createGitHubTracker({ owner, repo, token, agentDir, github }) {
       const oldLabel = STATE_LABELS[currentState];
       const newLabel = STATE_LABELS[nextState];
 
-      // Remove old status label (best-effort — may not exist)
-      const labelNames = knownIssue ? labels : (issue.labels || []).map((l) => l.name);
       if (labelNames.includes(oldLabel)) {
         await client.removeLabel(owner, repo, issueId, oldLabel);
       }
-
-      // Add new status label
       await client.addLabels(owner, repo, issueId, [newLabel]);
 
-      return {
-        id: knownIssue ? issue.id : String(issue.number),
-        title: issue.title,
-        previousState: currentState,
-        newState: nextState,
-      };
+      return { id, title, previousState: currentState, newState: nextState };
     },
 
     /**
