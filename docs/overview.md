@@ -1,40 +1,118 @@
-# What is YAAF
+# YAAF — Yet Another AI Factory - Project Overview
 
-YAAF (Yet Another AI Factory) is an autonomous software development conveyor. You describe what you need in natural language — "Fix the login bug", "Add dark mode support" — and a team of AI agents carries the request through structuring, architectural review, implementation, testing, and release. The result is shipped software with passing tests, updated documentation, and a published release.
+**Date:** 2026-04-06
+**Type:** Multi-part (Backend)
+**Architecture:** Orchestration + Pipeline
 
-## How the Conveyor Works
+## Executive Summary
 
-The conveyor metaphor is literal: your idea enters one end, and a release exits the other. Between those endpoints, three systems collaborate to keep the line moving.
+YAAF is an autonomous software delivery conveyor that automates the entire lifecycle of software development—from initial idea to final release. It coordinates multiple specialized AI agents to handle specifications, architectural reasoning, implementation, testing, documentation, and publishing. The system is designed for zero-intervention delivery, allowing human users to provide high-level intent while the system manages the complex pipeline mechanics.
 
-### OpenClaw — The Agent Platform
+## Project Classification
 
-OpenClaw provides the AI agents that do the actual work. It handles multi-agent routing, session management, tool invocations, and inter-agent communication. When the conveyor needs an architectural analysis or a code-aware context lookup, OpenClaw dispatches the right agent (e.g., `librarian` for repository exploration) and returns structured results. You do not interact with OpenClaw directly — the conveyor calls it on your behalf.
+- **Repository Type:** Multi-part / Monorepo-like
+- **Project Type(s):** Backend (Service/Orchestrator)
+- **Primary Language(s):** JavaScript (Node.js)
+- **Architecture Pattern:** Orchestration + deterministic JSON pipelines
 
-### Lobster — The Workflow Engine
+## Multi-Part Structure
 
-Lobster defines what happens at each stage of the conveyor. It runs typed, JSON-first pipelines with approval gates and LLM invocation steps. Each workflow (task creation, review, approval, publishing) is a Lobster pipeline composed of discrete steps. When a step produces a result — success, need for clarification, or rejection — Lobster routes the pipeline accordingly.
+This project consists of 2 distinct parts:
 
-### Symphony — The Orchestrator
+### Symphony Orchestrator
 
-Symphony keeps the factory running around the clock. It polls your issue tracker (GitHub Issues), identifies tasks that need attention, dispatches agent runs per task, and manages retries and concurrency. Symphony ensures no task is lost — every issue is tracked through its lifecycle until completion or explicit rejection.
+- **Type:** Backend (Service)
+- **Location:** `symphony/`
+- **Purpose:** Continuous execution orchestrator that polls GitHub Issues for tasks and dispatches appropriate workflows.
+- **Tech Stack:** Node.js (Standard Library), no external dependencies.
 
-## High-Level Flow
+### Lobster Pipeline
 
-```mermaid
-graph TD
-    A[You submit a request] --> B[Task created as GitHub Issue]
-    B --> C[Architectural review by AI agents]
-    C --> D{Clarification needed?}
-    D -- Yes --> E[System asks you a question]
-    E --> C
-    D -- No --> F[Task approved and moves to Ready]
-    F --> G[Implementation by coding agents]
-    G --> H[Quality gates and testing]
-    H --> I[Release published]
-```
+- **Type:** Backend (Service)
+- **Location:** `lobster/`
+- **Purpose:** Deterministic pipeline engine that executes sequential, typed workflows defined in `.lobster` files.
+- **Tech Stack:** Node.js (Standard Library), custom dotenv and retry logic.
 
-## Zero-Intervention Execution
+### How Parts Integrate
 
-Once a task is accepted into the conveyor (state: Ready), no human action is required until the release is published. The system handles implementation, testing, documentation updates, and release creation autonomously.
+Symphony acts as the "When" layer, monitoring GitHub for state changes via labels. When a task is ready for a specific phase (e.g., `draft` or `approved_after_pm`), Symphony dispatches a Lobster run. Lobster acts as the "How" layer, executing the actual steps (LLM calls, GitHub mutations, etc.) defined in its workflows. Data flows between them via GitHub Issues (which acts as the persistent state store) and command-line arguments.
 
-There are exceptions. The system communicates via four typed results — **Ready**, **NeedInfo**, **NeedDecision**, and **Rejected** — described in detail in [task-lifecycle.md](task-lifecycle.md). When the system needs your input (a clarifying question, an approval decision, or a choice between options), it pauses the pipeline and asks. You respond, and the pipeline resumes from where it stopped.
+## Technology Stack Summary
+
+### Symphony Stack
+
+| Category | Technology | Version | Justification |
+|---|---|---|---|
+| Runtime | Node.js | LTS | Standard stable environment |
+| Networking | `https` (native) | Built-in | Minimalist, no-dependency approach |
+| Auth | GitHub PAT | N/A | Secure repository access |
+
+### Lobster Stack
+
+| Category | Technology | Version | Justification |
+|---|---|---|---|
+| Runtime | Node.js | LTS | Standard stable environment |
+| Workflow | YAML (.lobster) | Custom | Deterministic, typed definitions |
+| LLM Gateway | OpenClaw | Custom | Unified agent/LLM access point |
+| Retry Logic | Custom | Built-in | Intelligent error recovery without external libs |
+
+## Key Features
+
+- **Zero-intervention delivery**: End-to-end automation from task to release.
+- **Deterministic Pipelines**: Typed JSON workflows with explicit approval gates.
+- **Stateful tracking via Labels**: Uses GitHub native features for task lifecycle management.
+- **Stateless LLM interaction**: Efficient, self-contained AI invocations.
+- **Zero Dependencies**: Robust, easy-to-deploy codebase using only standard libraries.
+
+## Architecture Highlights
+
+- **Stateless Execution**: Each Lobster run is self-contained; context travels via explicit state.
+- **Adversarial QA**: Dedicated agents validate outputs before advancing.
+- **Polled Orchestration**: Resilient, 24/7 monitoring of the task backlog.
+
+## Development Overview
+
+### Prerequisites
+
+- Node.js (LTS)
+- GitHub Personal Access Token (with `repo` scope)
+- OpenClaw (optional, for local agent/LLM gateway)
+
+### Getting Started
+
+1. Clone the repository.
+2. Create a `.env` file from `.env.example`.
+3. Fill in `GITHUB_TOKEN` and `GATEWAY_TOKEN`.
+4. Register your target projects in `config/projects.json`.
+5. Run `npm run symphony` to start the orchestrator.
+
+### Key Commands
+
+#### Symphony
+
+- **Dev/Run:** `npm run symphony` or `node symphony/index.js`
+
+#### Lobster
+
+- **Run Workflow:** `node lobster/index.js run <workflow-path> --args-json '...'`
+
+#### Project
+
+- **Test:** `npm test` (Zero external dependencies, all mocked)
+
+## Repository Structure
+
+The repository is organized into clearly separated modules despite being a single NPM package. Core logic resides in `lobster/` (workflows and steps) and `symphony/` (polling and dispatching). Shared configuration is handled via `config/`, while tests are centralized in `test/`.
+
+## Documentation Map
+
+For detailed information, see:
+
+- [index.md](./index.md) - Master documentation index
+- [source-tree-analysis.md](./source-tree-analysis.md) - Directory structure
+- [architecture.md](./architecture.md) - Detailed architecture (multi-part)
+- [development-guide.md](./development-guide.md) - Development workflow
+
+---
+
+_Generated using BMAD Method `document-project` workflow_

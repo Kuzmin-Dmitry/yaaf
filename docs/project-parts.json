@@ -1,0 +1,35 @@
+{
+  "repository_type": "multi-part",
+  "project_parts": [
+    {
+      "id": "symphony",
+      "name": "Symphony Orchestrator",
+      "root_path": "symphony/",
+      "project_type_id": "backend",
+      "framework": "Node.js (Custom Orchestrator)",
+      "description": "Continuous polling of GitHub issues and dispatching of workflows."
+    },
+    {
+      "id": "lobster",
+      "name": "Lobster Pipeline",
+      "root_path": "lobster/",
+      "project_type_id": "backend",
+      "framework": "Node.js (Lobster Pipeline)",
+      "description": "Autonomous task creation and publishing pipeline for OpenClaw agents."
+    }
+  ],
+  "integration_points": [
+    {
+      "from": "symphony",
+      "to": "lobster",
+      "type": "Process Spawn",
+      "details": "Symphony dispatches Lobster runs via child_process.spawn."
+    },
+    {
+      "from": "both",
+      "to": "GitHub API",
+      "type": "REST API",
+      "details": "Both parts interact with GitHub Issues and Labels for state management."
+    }
+  ]
+}

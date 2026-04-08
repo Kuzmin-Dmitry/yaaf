@@ -1,6 +1,7 @@
 # YAAF — Yet Another AI Factory
 
 > Human gives the idea. Agents deliver the Release.
+> **License:** [MIT](LICENSE)
 
 ---
 
@@ -105,49 +106,33 @@ Everything else is execution.
 
 ---
 
-Если присмотреться, тут есть лёгкий сдвиг:
-это уже не “инструмент для разработки”, а **интерфейс к доставке софта как процессу**.
-И именно это лучше всего считывается, когда текст не пытается быть “продающим”, а просто спокойно фиксирует, как устроена реальность.
-
-
 ## Prerequisites
 
-Before using YAAF, ensure you have:
-
-- **Node.js** (current LTS) — runtime for all pipelines
-- **GitHub Personal Access Token** with `repo` scope — for issue tracking and publishing
-- **OpenClaw CLI** (optional) — only needed for the architectural review pipeline's Librarian agent
+- **Node.js** (LTS) — runtime for all pipelines
+- **GitHub Personal Access Token** with `repo` scope
+- **OpenClaw** (optional) — for Jarvis agent and LLM gateway
 
 ## Get started
-
-### 1. Clone and install
 
 ```bash
 git clone https://github.com/Kuzmin-Dmitry/yaaf.git
 cd yaaf
+cp .env.example .env   # fill in GITHUB_TOKEN, GATEWAY_TOKEN
 ```
 
 No `npm install` needed — zero external dependencies.
 
-### 2. Configure
-
-Set your GitHub token:
-
-```bash
-export GITHUB_TOKEN=ghp_your_token_here
-```
-
-See [docs/setup.md](docs/setup.md) for full configuration options, dry-run mode, and Lobster CLI usage.
+See [docs/setup.md](docs/setup.md) for full configuration.
 
 ## Documentation
 
 | Document | What you learn |
 |----------|---------------|
-| [Overview](docs/overview.md) | How the conveyor works, what each component does, when the system asks for your input |
-| [Task Lifecycle](docs/task-lifecycle.md) | Task states (Draft → Backlog → Ready → Done), result types, GitHub label mapping |
-| [Workflows](docs/workflows.md) | Each pipeline step-by-step — create issue, approve, review, project status |
-| [Setup](docs/setup.md) | Environment variables, tracker configuration, programmatic and CLI usage |
-| [Troubleshooting](docs/troubleshooting.md) | Error messages, API failures, timeouts, retry behavior |
+| [Overview](docs/overview.md) | Three layers (Symphony, Lobster, OpenClaw), when the system asks for input |
+| [Task Lifecycle](docs/workflow.md) | States, labels, transitions (draft → reviewed → approved → decomposed) |
+| [Workflows](docs/workflow.md) | Each pipeline step-by-step with step-functions reference |
+| [Setup](docs/setup.md) | Environment variables, project registry, CLI usage |
+| [Architecture](docs/index.md) | Detailed C0-C2 diagrams and component interaction |
 
 **Recommended reading order:** Overview → Task Lifecycle → Setup
 
@@ -156,15 +141,15 @@ See [docs/setup.md](docs/setup.md) for full configuration options, dry-run mode,
 ```
 yaaf/
 ├── lobster/
-│   ├── lib/
-│   │   ├── tasks/      # Pipelines: approve, review, publish, project status
-│   │   ├── github/     # GitHub API client, tracker adapters, Symphony integration
-│   │   ├── openclaw/   # OpenClaw agent runner
-│   │   └── usage/      # Usage metrics aggregator
-│   └── workflows/      # Lobster pipeline definitions (.lobster)
-├── docs/                # User-facing documentation
-├── test/                # Test suites (all mocked, zero dependencies)
-└── README.md
+│   ├── lib/tasks/steps/   # Step-functions (LLM, GitHub API, docs)
+│   └── workflows/         # .lobster pipeline definitions
+├── symphony/              # Orchestration daemon (polls issues, dispatches workflows)
+├── config/                # projects.json — project registry
+├── docs/
+│   ├── arch-*.md          # Architecture diagrams (C0-C2)
+│   └── workflow-*.md      # Workflow documentation
+├── test/                  # All mocked, zero external dependencies
+└── .env.example           # Environment template
 ```
 
 ## License
