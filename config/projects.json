@@ -1,0 +1,15 @@
+{
+  "projects": [
+    {
+      "name": "yaaf",
+      "aliases": [
+        "yaaf",
+        "factory",
+        "фабрика"
+      ],
+      "owner": "Kuzmin-Dmitry",
+      "repo": "yaaf",
+      "local_path": "."
+    }
+  ]
+}

@@ -4,9 +4,18 @@
   "description": "YAAF — Yet Another AI Factory. Autonomous task creation and publishing pipeline for OpenClaw agents.",
   "main": "lobster/lib/tasks/index.js",
   "scripts": {
-    "test": "node test/usage/aggregator.test.js && node test/tasks/model.test.js && node test/tasks/steps.test.js && node test/tasks/create-task.test.js && node test/tasks/approve-task.test.js && node test/tasks/publish-task-model.test.js && node test/tasks/publish-task-steps.test.js && node test/tasks/publish-task.test.js && node test/github/tracker-adapter.test.js && node test/github/symphony-adapter.test.js && node test/tasks/project-status.test.js && node test/tasks/review-task.test.js && node test/tasks/create-github-issue.test.js"
+    "test": "NODE_ENV=test node test/workflows/validate-lobster.test.js && node test/tasks/create-github-issue.test.js && node test/tasks/get-user-approve.test.js && node test/tasks/update-issue.test.js && node test/tasks/decompose-issue.test.js && node test/tasks/issue-review.test.js && node test/tasks/user-approve-callback.test.js && node test/symphony/symphony.test.js && node test/symphony/dispatcher.test.js && node test/symphony/tracker.test.js && node test/symphony/timeout.test.js && node test/symphony/run.test.js && node test/integration/flow.test.js",
+    "symphony": "node symphony/index.js"
   },
-  "author": "",
+  "author": "Dmitry Kuzmin",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Kuzmin-Dmitry/yaaf.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Kuzmin-Dmitry/yaaf/issues"
+  },
+  "homepage": "https://github.com/Kuzmin-Dmitry/yaaf#readme",
   "type": "commonjs"
 }
