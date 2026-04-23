@@ -4,7 +4,24 @@
  */
 
 const assert = require('assert');
-const { createGitHubTracker, mapIssueState, resolveToken } = require('../../lobster/lib/github/tracker-adapter');
+const { createGitHubTracker, mapIssueState, resolveToken, TrackerError } = require('../../lobster/lib/github/tracker-adapter');
+
+// Set-equivalence assertion for label arrays (order doesn't matter).
+function assertSameLabelSet(actual, expected, msg) {
+  assert.strictEqual(
+    Array.isArray(actual),
+    true,
+    `${msg || 'labels'}: expected array, got ${typeof actual}`
+  );
+  assert.strictEqual(
+    actual.length,
+    expected.length,
+    `${msg || 'labels'}: length ${actual.length} vs expected ${expected.length} (actual=${JSON.stringify(actual)})`
+  );
+  const a = [...actual].sort();
+  const e = [...expected].sort();
+  assert.deepStrictEqual(a, e, msg);
+}
 
 // --- Mock GitHub client ---
 
@@ -295,80 +312,175 @@ async function testFetchIssuePassesCorrectId() {
   assert.strictEqual(capturedId, '42');
 }
 
-// --- approveIssue ---
+// --- approveIssue (atomic transitions via setLabels) ---
 
+// Shared helper — mock with counters for mutating label methods.
+function mockTrackerClient(overrides = {}) {
+  const calls = { setLabels: [], addLabels: [], removeLabel: [] };
+  const base = {
+    getIssue: async (_o, _r, issueNumber) => ({
+      number: Number(issueNumber),
+      title: 'Test',
+      state: 'open',
+      labels: [],
+    }),
+    setLabels: async (_o, _r, n, labels) => {
+      calls.setLabels.push({ n, labels });
+      return labels.map((name) => ({ name }));
+    },
+    addLabels: async (_o, _r, n, labels) => {
+      calls.addLabels.push({ n, labels });
+      return [];
+    },
+    removeLabel: async (_o, _r, n, label) => {
+      calls.removeLabel.push({ n, label });
+      return [];
+    },
+    ...overrides,
+  };
+  return { client: base, calls };
+}
+
+// S1: Draft → Backlog with one non-status label preserved.
 async function testApproveIssueDraftToBacklog() {
-  console.log('Test: approveIssue Draft → Backlog swaps labels');
-  let removedLabel, addedLabels;
-  const tracker = createGitHubTracker({
-    owner: 'org',
-    repo: 'proj',
-    github: mockGitHubClient({
-      getIssue: async () => ({
-        number: 10,
-        title: 'Test',
-        state: 'open',
-        labels: [{ name: 'status:draft' }],
-      }),
-      removeLabel: async (_o, _r, _n, label) => { removedLabel = label; return []; },
-      addLabels: async (_o, _r, _n, labels) => { addedLabels = labels; return []; },
+  console.log('Test: S1 — approveIssue Draft→Backlog replaces labels atomically');
+  const { client, calls } = mockTrackerClient({
+    getIssue: async () => ({
+      number: 10,
+      title: 'Fix login bug',
+      state: 'open',
+      labels: [{ name: 'status:draft' }, { name: 'type:bug' }],
     }),
   });
+  const tracker = createGitHubTracker({ owner: 'org', repo: 'proj', github: client });
 
   const result = await tracker.approveIssue('10');
+
+  assert.strictEqual(result.id, '10');
+  assert.strictEqual(result.title, 'Fix login bug');
   assert.strictEqual(result.previousState, 'Draft');
   assert.strictEqual(result.newState, 'Backlog');
-  assert.strictEqual(removedLabel, 'status:draft');
-  assert.deepStrictEqual(addedLabels, ['status:backlog']);
+
+  assert.strictEqual(calls.setLabels.length, 1, 'setLabels must be called exactly once');
+  assert.strictEqual(calls.addLabels.length, 0, 'addLabels must not be called');
+  assert.strictEqual(calls.removeLabel.length, 0, 'removeLabel must not be called');
+  assertSameLabelSet(calls.setLabels[0].labels, ['type:bug', 'status:backlog']);
 }
 
-async function testApproveIssueBacklogToReady() {
-  console.log('Test: approveIssue Backlog → Ready swaps labels');
-  let removedLabel, addedLabels;
-  const tracker = createGitHubTracker({
-    owner: 'org',
-    repo: 'proj',
-    github: mockGitHubClient({
-      getIssue: async () => ({
-        number: 20,
-        title: 'Test',
-        state: 'open',
-        labels: [{ name: 'status:backlog' }],
-      }),
-      removeLabel: async (_o, _r, _n, label) => { removedLabel = label; return []; },
-      addLabels: async (_o, _r, _n, labels) => { addedLabels = labels; return []; },
+// S2: Backlog → Ready with multiple non-status labels (all preserved).
+async function testApproveIssueBacklogToReadyPreservesNonStatusLabels() {
+  console.log('Test: S2 — approveIssue preserves all non-status labels');
+  const { client, calls } = mockTrackerClient({
+    getIssue: async () => ({
+      number: 55,
+      title: 'Ship feature X',
+      state: 'open',
+      labels: [
+        { name: 'status:backlog' },
+        { name: 'type:feature' },
+        { name: 'reviewed:architecture' },
+        { name: 'priority:p1' },
+      ],
     }),
   });
+  const tracker = createGitHubTracker({ owner: 'org', repo: 'proj', github: client });
 
-  const result = await tracker.approveIssue('20');
+  const result = await tracker.approveIssue('55');
+
   assert.strictEqual(result.previousState, 'Backlog');
   assert.strictEqual(result.newState, 'Ready');
-  assert.strictEqual(removedLabel, 'status:backlog');
-  assert.deepStrictEqual(addedLabels, ['status:ready']);
+
+  assert.strictEqual(calls.setLabels.length, 1);
+  assertSameLabelSet(
+    calls.setLabels[0].labels,
+    ['type:feature', 'reviewed:architecture', 'priority:p1', 'status:ready'],
+  );
+  // Old status:backlog must NOT leak into the new set.
+  assert.ok(!calls.setLabels[0].labels.includes('status:backlog'), 'old status label must not leak');
 }
 
-async function testApproveIssueReadyThrows() {
-  console.log('Test: approveIssue Ready → throws');
-  const tracker = createGitHubTracker({
-    owner: 'org',
-    repo: 'proj',
-    github: mockGitHubClient({
-      getIssue: async () => ({
-        number: 30,
-        title: 'Test',
-        state: 'open',
-        labels: [{ name: 'status:ready' }],
-      }),
+// S3 (idempotency): issue without any status:* label → mapIssueState returns 'Draft'
+// for open issues, transition goes to Backlog, non-status labels preserved.
+async function testApproveIssueWithoutStatusLabel() {
+  console.log('Test: S3 — approveIssue on issue without status:* label (treated as Draft)');
+  const { client, calls } = mockTrackerClient({
+    getIssue: async () => ({
+      number: 77,
+      title: 'Legacy issue',
+      state: 'open',
+      labels: [{ name: 'type:bug' }],
     }),
   });
+  const tracker = createGitHubTracker({ owner: 'org', repo: 'proj', github: client });
 
-  try {
-    await tracker.approveIssue('30');
-    assert.fail('Should have thrown');
-  } catch (err) {
-    assert.ok(err.message.includes('Cannot approve'));
-    assert.ok(err.message.includes('Ready'));
-  }
+  const result = await tracker.approveIssue('77');
+
+  assert.strictEqual(result.previousState, 'Draft');
+  assert.strictEqual(result.newState, 'Backlog');
+  assert.strictEqual(calls.setLabels.length, 1);
+  assertSameLabelSet(calls.setLabels[0].labels, ['type:bug', 'status:backlog']);
+}
+
+// S3b: existing guard — state with no valid transition still throws (not TrackerError;
+// this is a validation failure before any mutation).
+async function testApproveIssueReadyThrows() {
+  console.log('Test: S3b — approveIssue on Ready throws (no valid transition)');
+  const { client, calls } = mockTrackerClient({
+    getIssue: async () => ({
+      number: 30,
+      title: 'Test',
+      state: 'open',
+      labels: [{ name: 'status:ready' }],
+    }),
+  });
+  const tracker = createGitHubTracker({ owner: 'org', repo: 'proj', github: client });
+
+  await assert.rejects(
+    () => tracker.approveIssue('30'),
+    (err) => {
+      assert.ok(err.message.includes('Cannot approve'), 'expected Cannot approve in message');
+      assert.ok(err.message.includes('Ready'), 'expected Ready in message');
+      assert.ok(!(err instanceof TrackerError), 'pre-mutation validation must not wrap as TrackerError');
+      return true;
+    },
+  );
+  assert.strictEqual(calls.setLabels.length, 0, 'setLabels must not be called on invalid transition');
+}
+
+// S4: setLabels failure is wrapped as TrackerError with code 'transition_failed'.
+async function testApproveIssueTransitionFailedWrapsAsTrackerError() {
+  console.log('Test: S4 — setLabels failure → TrackerError { code: transition_failed }');
+  const { client, calls } = mockTrackerClient({
+    getIssue: async () => ({
+      number: 88,
+      title: 'Test',
+      state: 'open',
+      labels: [{ name: 'status:draft' }],
+    }),
+    setLabels: async () => {
+      const err = new Error('500 Internal Server Error');
+      err.status = 500;
+      throw err;
+    },
+  });
+  const tracker = createGitHubTracker({ owner: 'org', repo: 'proj', github: client });
+
+  await assert.rejects(
+    () => tracker.approveIssue('88'),
+    (err) => {
+      assert.ok(err instanceof TrackerError, `expected TrackerError, got ${err && err.name}`);
+      assert.strictEqual(err.code, 'transition_failed');
+      assert.ok(err.cause instanceof Error, 'expected cause to be Error');
+      assert.strictEqual(err.cause.message, '500 Internal Server Error');
+      assert.ok(err.message.includes('#88'), 'message should mention issue number');
+      assert.ok(err.message.includes('Draft'), 'message should mention source state');
+      assert.ok(err.message.includes('Backlog'), 'message should mention target state');
+      return true;
+    },
+  );
+  // Confirm nothing else was called during the failed transition.
+  assert.strictEqual(calls.addLabels.length, 0);
+  assert.strictEqual(calls.removeLabel.length, 0);
 }
 
 // Run all
@@ -395,8 +507,10 @@ console.log('=== GitHub Tracker Adapter Tests ===');
   await testFetchIssue();
   await testFetchIssuePassesCorrectId();
   await testApproveIssueDraftToBacklog();
-  await testApproveIssueBacklogToReady();
+  await testApproveIssueBacklogToReadyPreservesNonStatusLabels();
+  await testApproveIssueWithoutStatusLabel();
   await testApproveIssueReadyThrows();
+  await testApproveIssueTransitionFailedWrapsAsTrackerError();
   console.log('All GitHub tracker adapter tests passed.');
 })().catch((err) => {
   console.error('Test failed:', err);
