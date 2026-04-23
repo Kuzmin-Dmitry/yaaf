@@ -125,6 +125,21 @@ function createGitHubClient(token) {
     },
 
     /**
+     * Replace the full label set on an issue (atomic swap).
+     * Pass the complete desired label list, not a delta — existing labels are
+     * replaced by the provided set in a single PUT request.
+     * @param {string} owner
+     * @param {string} repo
+     * @param {number|string} issueNumber
+     * @param {string[]} labels - complete target label set; pass [] to clear
+     * @returns {Promise<Array>} updated labels
+     */
+    setLabels(owner, repo, issueNumber, labels) {
+      const path = `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/issues/${encodeURIComponent(issueNumber)}/labels`;
+      return httpRequest('PUT', path, { labels }, token);
+    },
+
+    /**
      * Update an existing issue (title, body, labels, etc.).
      * @param {string} owner
      * @param {string} repo
