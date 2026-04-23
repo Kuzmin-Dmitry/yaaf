@@ -14,6 +14,8 @@ const { STATE_LABELS, APPROVAL_TRANSITIONS, REVIEW_LABEL } = require('../tasks/m
 const fs = require('fs');
 const path = require('path');
 
+const isStatusLabel = (name) => typeof name === 'string' && name.startsWith('status:');
+
 /**
  * Read GitHub token from OpenClaw auth-profiles.json.
  * @param {string} [agentDir] - path to agent dir containing auth-profiles.json
@@ -151,6 +153,15 @@ function createGitHubTracker({ owner, repo, token, agentDir, github }) {
     /**
      * Approve an issue: transition Draft→Backlog or Backlog→Ready via labels.
      * Caller (approve-task) must validate transition before calling.
+     *
+     * Uses a single `setLabels` (PUT /labels) call so the issue is never
+     * observed without a `status:*` label during the transition. Non-status
+     * labels (e.g. `type:bug`, `reviewed:architecture`) are preserved.
+     *
+     * Idempotent w.r.t. pre-existing status label set: the target state is
+     * asserted unconditionally — any `status:*` already on the issue is
+     * stripped before `STATE_LABELS[nextState]` is added.
+     *
      * @param {string} issueId - issue number
      * @param {Object} [knownIssue] - pre-fetched normalized issue from pipeline (avoids extra API call)
      * @returns {Promise<{ id: string, title: string, previousState: string, newState: string }>}
@@ -177,13 +188,10 @@ function createGitHubTracker({ owner, repo, token, agentDir, github }) {
         throw new Error(`Cannot approve issue in state "${currentState}". Approval is only valid for: ${Object.keys(APPROVAL_TRANSITIONS).join(', ')}`);
       }
 
-      const oldLabel = STATE_LABELS[currentState];
       const newLabel = STATE_LABELS[nextState];
+      const nextLabels = (labelNames || []).filter((l) => !isStatusLabel(l)).concat([newLabel]);
 
-      if (labelNames.includes(oldLabel)) {
-        await client.removeLabel(owner, repo, issueId, oldLabel);
-      }
-      await client.addLabels(owner, repo, issueId, [newLabel]);
+      await client.setLabels(owner, repo, issueId, nextLabels);
 
       return { id, title, previousState: currentState, newState: nextState };
     },
