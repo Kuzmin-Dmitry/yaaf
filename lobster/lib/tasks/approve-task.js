@@ -15,6 +15,7 @@
  */
 
 const { RESULT_TYPES, APPROVAL_TRANSITIONS } = require('./model');
+const { TrackerError } = require('../github/tracker-adapter');
 
 /**
  * Run the approve_task pipeline.
@@ -51,7 +52,19 @@ async function approveTask(input, deps) {
   }
 
   // Step 3: Execute approval (swap labels), pass pre-fetched issue to avoid double API call
-  const result = await tracker.approveIssue(issue_id, issue);
+  let result;
+  try {
+    result = await tracker.approveIssue(issue_id, issue);
+  } catch (err) {
+    if (err instanceof TrackerError && err.code === 'transition_failed') {
+      return {
+        type: RESULT_TYPES.Rejected,
+        reason: 'transition_failed',
+        details: err.message,
+      };
+    }
+    throw err;
+  }
 
   return {
     type: RESULT_TYPES.Ready,

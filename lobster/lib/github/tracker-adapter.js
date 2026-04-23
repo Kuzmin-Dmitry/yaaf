@@ -14,6 +14,20 @@ const { STATE_LABELS, APPROVAL_TRANSITIONS, REVIEW_LABEL } = require('../tasks/m
 const fs = require('fs');
 const path = require('path');
 
+/**
+ * Domain-level error thrown by tracker operations. Carries a stable `code`
+ * so callers can translate it into a structured `Rejected` result without
+ * inspecting the raw HTTP error.
+ */
+class TrackerError extends Error {
+  constructor(code, message, cause) {
+    super(message);
+    this.name = 'TrackerError';
+    this.code = code;
+    if (cause !== undefined) this.cause = cause;
+  }
+}
+
 const isStatusLabel = (name) => typeof name === 'string' && name.startsWith('status:');
 
 /**
@@ -165,6 +179,7 @@ function createGitHubTracker({ owner, repo, token, agentDir, github }) {
      * @param {string} issueId - issue number
      * @param {Object} [knownIssue] - pre-fetched normalized issue from pipeline (avoids extra API call)
      * @returns {Promise<{ id: string, title: string, previousState: string, newState: string }>}
+     * @throws {TrackerError} with code `transition_failed` if the label update fails.
      */
     async approveIssue(issueId, knownIssue) {
       // Normalize: if knownIssue already has string labels and mapped state, use as-is.
@@ -191,7 +206,15 @@ function createGitHubTracker({ owner, repo, token, agentDir, github }) {
       const newLabel = STATE_LABELS[nextState];
       const nextLabels = (labelNames || []).filter((l) => !isStatusLabel(l)).concat([newLabel]);
 
-      await client.setLabels(owner, repo, issueId, nextLabels);
+      try {
+        await client.setLabels(owner, repo, issueId, nextLabels);
+      } catch (e) {
+        throw new TrackerError(
+          'transition_failed',
+          `Failed to transition issue #${issueId} from ${currentState} to ${nextState}: ${e.message}`,
+          e
+        );
+      }
 
       return { id, title, previousState: currentState, newState: nextState };
     },
@@ -223,4 +246,4 @@ function createGitHubTracker({ owner, repo, token, agentDir, github }) {
   };
 }
 
-module.exports = { createGitHubTracker, mapIssueState, resolveToken };
+module.exports = { createGitHubTracker, mapIssueState, resolveToken, TrackerError };
